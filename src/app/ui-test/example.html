@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>AETHER_VIS | 3D Audio Visualizer</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&amp;family=Geist:wght@400;600;700;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-secondary-fixed-variant": "#802a00",
+                        "primary-container": "#00f0ff",
+                        "on-secondary": "#5a1b00",
+                        "primary-fixed": "#7df4ff",
+                        "outline-variant": "#3b494b",
+                        "on-tertiary-container": "#7213ff",
+                        "on-surface-variant": "#b9cacb",
+                        "on-surface": "#e5e2e3",
+                        "surface": "#131314",
+                        "primary-fixed-dim": "#00dbe9",
+                        "tertiary-container": "#e1d2ff",
+                        "outline": "#849495",
+                        "on-secondary-container": "#531900",
+                        "surface-container": "#201f20",
+                        "secondary": "#ffb59a",
+                        "on-tertiary-fixed": "#23005b",
+                        "on-primary-fixed": "#002022",
+                        "error": "#ffb4ab",
+                        "secondary-fixed": "#ffdbce",
+                        "surface-bright": "#3a393a",
+                        "on-tertiary": "#3c0090",
+                        "inverse-surface": "#e5e2e3",
+                        "on-primary": "#00363a",
+                        "surface-variant": "#353436",
+                        "surface-container-high": "#2a2a2b",
+                        "on-secondary-fixed": "#370e00",
+                        "tertiary-fixed-dim": "#d1bcff",
+                        "on-primary-fixed-variant": "#004f54",
+                        "surface-container-lowest": "#0e0e0f",
+                        "on-error": "#690005",
+                        "error-container": "#93000a",
+                        "surface-container-highest": "#353436",
+                        "tertiary-fixed": "#e9ddff",
+                        "inverse-on-surface": "#313031",
+                        "surface-dim": "#131314",
+                        "secondary-container": "#ff5e07",
+                        "surface-tint": "#00dbe9",
+                        "primary": "#dbfcff",
+                        "secondary-fixed-dim": "#ffb59a",
+                        "tertiary": "#faf3ff",
+                        "on-error-container": "#ffdad6",
+                        "inverse-primary": "#006970",
+                        "on-background": "#e5e2e3",
+                        "surface-container-low": "#1c1b1c",
+                        "on-primary-container": "#006970",
+                        "on-tertiary-fixed-variant": "#5700c9",
+                        "background": "#131314"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "gutter": "16px",
+                        "panel-padding": "24px",
+                        "safe-area": "32px",
+                        "unit": "4px"
+                    },
+                    "fontFamily": {
+                        "label-mono": ["JetBrains Mono"],
+                        "headline-md": ["Geist"],
+                        "body-base": ["Geist"],
+                        "headline-lg-mobile": ["Geist"],
+                        "display-lg": ["Geist"]
+                    },
+                    "fontSize": {
+                        "label-mono": ["12px", {"lineHeight": "1", "letterSpacing": "0.05em", "fontWeight": "500"}],
+                        "headline-md": ["24px", {"lineHeight": "1.2", "fontWeight": "600"}],
+                        "body-base": ["16px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                        "headline-lg-mobile": ["32px", {"lineHeight": "1.2", "fontWeight": "700"}],
+                        "display-lg": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "700"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            background-color: #0e0e0f;
+            color: #e5e2e3;
+            overflow: hidden;
+            font-family: 'Geist', sans-serif;
+        }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .neon-glow {
+            box-shadow: 0 0 15px rgba(0, 240, 255, 0.4);
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        .active-state {
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.5s ease-in-out;
+        }
+        .playing .active-state {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .playing .initial-state {
+            opacity: 0;
+            pointer-events: none;
+        }
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 2px;
+            background: #3b494b;
+            outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 12px;
+            height: 12px;
+            background: #00f0ff;
+            cursor: pointer;
+            border-radius: 0;
+            box-shadow: 0 0 10px rgba(0, 240, 255, 0.5);
+        }
+    </style>
+</head>
+<body class="h-screen w-screen selection:bg-primary-container selection:text-black">
+<!-- Canvas Layer -->
+<div class="fixed inset-0 z-0" id="canvas-container">
+<img alt="3D Scene Background" class="w-full h-full object-cover opacity-40 brightness-50" data-alt="A cinematic 3D particle visualization in a dark void. Glowing cyan and orange spheres are suspended in a mathematical grid structure, creating a sense of deep perspective. The lighting is moody and technical, with light trails following the movement of particles. The aesthetic is high-fidelity and futuristic, resembling a sophisticated audio frequency mapping environment." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCY5s18NuWc9KmS8lbudGBHrrsJTeCnuS1CklWDvJkJ8AEN-k9IWaEoQm0m4MhROSJ5SZJTMU2CfqVHQEecYAEw3U9-mkH0ToAvcxAcDvwEopcqri5C3DbQKZqoDSdbgzfTZd4QbBOVp650awXHULPnuC9d0bTILqEURhuua7Yz0CgoeuTHHFWmK5uv75OMCHG9krFFPueiuwyftttrJVdoWXv1WFOM_Pem7Hm38KYdzi2PZooro9OAEzvuATe0f12SDEOYTkv2Yic8"/>
+<div class="absolute inset-0 bg-gradient-to-t from-surface-container-lowest via-transparent to-surface-container-lowest/50"></div>
+</div>
+<!-- Initial State -->
+<div class="initial-state fixed inset-0 z-50 flex flex-col items-center justify-center transition-all duration-700" id="initial-state">
+<div class="text-center space-y-8 max-w-xl px-gutter">
+<h1 class="font-headline-md text-display-lg text-primary-container tracking-tighter uppercase mb-2">AETHER_VIS</h1>
+<p class="font-label-mono text-on-surface-variant text-label-mono uppercase tracking-widest">Atmospheric Sound Mapping Engine</p>
+<div class="group relative cursor-pointer p-12 border-2 border-dashed border-white/10 rounded-xl hover:border-primary-container/50 transition-all duration-300 glass-panel" id="drop-zone" onclick="toggleState()">
+<div class="absolute inset-0 bg-primary-container/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+<span class="material-symbols-outlined text-6xl text-primary-container mb-4 block">cloud_upload</span>
+<button class="bg-primary-container text-black font-headline-md text-headline-md px-10 py-4 rounded-lg neon-glow hover:scale-105 active:scale-95 transition-all mb-4">
+                    Upload MP3
+                </button>
+<p class="font-label-mono text-on-surface-variant text-label-mono uppercase">Press P to play default song, or upload an MP3</p>
+</div>
+</div>
+<div class="absolute bottom-10 left-10 flex items-center gap-4">
+<div class="w-12 h-12 border border-white/20 rounded-full flex items-center justify-center font-bold text-lg text-white">N'</div>
+<div class="h-px w-24 bg-white/10"></div>
+</div>
+</div>
+<!-- Active State Shell -->
+<div class="active-state fixed inset-0 z-40" id="active-state">
+<!-- TopAppBar -->
+<header class="fixed top-0 left-0 right-0 z-50 flex justify-between items-center w-full px-gutter py-4 bg-gradient-to-b from-surface-container-lowest/80 to-transparent">
+<div class="flex items-center gap-6">
+<span class="text-headline-md font-headline-md font-bold tracking-tighter text-primary-container">AETHER_VIS</span>
+<nav class="hidden md:flex items-center gap-8 ml-8">
+<a class="font-label-mono text-label-mono text-primary-container border-b border-primary-container pb-1 transition-all duration-300" href="#">Gallery</a>
+<a class="font-label-mono text-label-mono text-on-surface-variant hover:text-on-surface transition-colors" href="#">Methodology</a>
+<a class="font-label-mono text-label-mono text-on-surface-variant hover:text-on-surface transition-colors" href="#">Presets</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<button class="bg-primary-container text-on-primary-container px-4 py-2 rounded font-label-mono text-label-mono font-bold hover:bg-white/90 transition-all active:scale-95">
+                    Upload MP3
+                </button>
+<div class="flex gap-2">
+<button class="w-10 h-10 flex items-center justify-center text-on-surface-variant hover:bg-white/10 rounded transition-all">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+</button>
+<button class="w-10 h-10 flex items-center justify-center text-on-surface-variant hover:bg-white/10 rounded transition-all">
+<span class="material-symbols-outlined" data-icon="fullscreen">fullscreen</span>
+</button>
+</div>
+</div>
+</header>
+<!-- SideNavBar / Control Panel -->
+<aside class="fixed left-4 top-20 bottom-20 z-40 flex flex-col p-panel-padding glass-panel w-80 rounded-xl border-white/10 shadow-[0_0_20px_rgba(0,219,233,0.1)]">
+<div class="mb-8">
+<div class="font-headline-md text-headline-md font-black text-primary-container tracking-tighter">CONTROL_UNIT</div>
+<div class="font-label-mono text-label-mono text-on-surface-variant opacity-50">V.02.4-BETA</div>
+</div>
+<div class="flex-1 space-y-8 overflow-y-auto pr-2 custom-scrollbar">
+<!-- Particles Group -->
+<section class="space-y-4">
+<div class="flex items-center justify-between border-b border-white/10 pb-2">
+<label class="font-label-mono text-label-mono text-primary-container uppercase flex items-center gap-2">
+<span class="material-symbols-outlined text-sm" data-icon="grain">grain</span> Particles
+                        </label>
+<input checked="" class="rounded border-white/20 bg-transparent text-primary-container focus:ring-primary-container" type="checkbox"/>
+</div>
+<div class="space-y-4">
+<div class="space-y-2">
+<div class="flex justify-between font-label-mono text-[10px] text-on-surface-variant uppercase">
+<span>Density</span>
+<span>85%</span>
+</div>
+<input class="accent-primary-container" type="range" value="85"/>
+</div>
+<div class="space-y-2">
+<div class="flex justify-between font-label-mono text-[10px] text-on-surface-variant uppercase">
+<span>Size Scale</span>
+<span>1.2x</span>
+</div>
+<input class="accent-primary-container" type="range" value="40"/>
+</div>
+</div>
+</section>
+<!-- Physics Group -->
+<section class="space-y-4">
+<div class="flex items-center justify-between border-b border-white/10 pb-2">
+<label class="font-label-mono text-label-mono text-primary-container uppercase flex items-center gap-2">
+<span class="material-symbols-outlined text-sm" data-icon="auto_graph">auto_graph</span> Physics
+                        </label>
+<input checked="" class="rounded border-white/20 bg-transparent text-primary-container focus:ring-primary-container" type="checkbox"/>
+</div>
+<div class="space-y-4">
+<div class="space-y-2">
+<div class="flex justify-between font-label-mono text-[10px] text-on-surface-variant uppercase">
+<span>Gravity Decay</span>
+<span>-9.8</span>
+</div>
+<input class="accent-primary-container" type="range" value="30"/>
+</div>
+<div class="space-y-2">
+<div class="flex justify-between font-label-mono text-[10px] text-on-surface-variant uppercase">
+<span>Friction</span>
+<span>0.02</span>
+</div>
+<input class="accent-primary-container" type="range" value="15"/>
+</div>
+</div>
+</section>
+<!-- Camera Group -->
+<section class="space-y-4">
+<div class="flex items-center justify-between border-b border-white/10 pb-2">
+<label class="font-label-mono text-label-mono text-primary-container uppercase flex items-center gap-2">
+<span class="material-symbols-outlined text-sm" data-icon="videocam">videocam</span> Camera
+                        </label>
+</div>
+<div class="grid grid-cols-2 gap-2">
+<button class="bg-white/5 border border-white/10 py-2 rounded font-label-mono text-[10px] hover:bg-white/10 transition-all uppercase">Static</button>
+<button class="bg-primary-container/20 border border-primary-container/40 py-2 rounded font-label-mono text-[10px] text-primary-container uppercase">Orbit</button>
+<button class="bg-white/5 border border-white/10 py-2 rounded font-label-mono text-[10px] hover:bg-white/10 transition-all uppercase">Fly</button>
+<button class="bg-white/5 border border-white/10 py-2 rounded font-label-mono text-[10px] hover:bg-white/10 transition-all uppercase">React</button>
+</div>
+</section>
+</div>
+<div class="mt-8 pt-6 border-t border-white/10">
+<button class="w-full py-3 border border-white/20 font-label-mono text-label-mono uppercase hover:bg-white/5 transition-all mb-4" onclick="toggleState()">
+                    Reset Scene
+                </button>
+<div class="flex justify-between items-center text-on-surface-variant">
+<button class="flex items-center gap-1 font-label-mono text-[10px] hover:text-white transition-colors">
+<span class="material-symbols-outlined text-[14px]">menu_book</span> Documentation
+                    </button>
+<button class="flex items-center gap-1 font-label-mono text-[10px] hover:text-white transition-colors">
+<span class="material-symbols-outlined text-[14px]">code</span> GitHub
+                    </button>
+</div>
+</div>
+</aside>
+<!-- Bottom Right Methodology Panel -->
+<div class="fixed bottom-10 right-10 w-80 glass-panel p-panel-padding rounded-xl border-white/10 animate-fade-in">
+<h4 class="font-label-mono text-label-mono text-primary-container uppercase mb-3 flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">info</span> Methodology
+            </h4>
+<p class="font-body-base text-xs text-on-surface-variant leading-relaxed">
+                Aether visualization engine maps real-time audio frequencies to spatial coordinates. Each sphere represents a unique MIDI note or frequency band, where <span class="text-white">Radius = Volume</span> and <span class="text-white">Velocity = Energy</span>.
+            </p>
+<div class="mt-4 flex gap-4 overflow-hidden">
+<div class="w-1/3 h-1 bg-primary-container/30 rounded-full overflow-hidden">
+<div class="h-full bg-primary-container w-[70%] animate-pulse"></div>
+</div>
+<div class="w-1/3 h-1 bg-primary-container/30 rounded-full overflow-hidden">
+<div class="h-full bg-primary-container w-[40%] animate-pulse"></div>
+</div>
+<div class="w-1/3 h-1 bg-primary-container/30 rounded-full overflow-hidden">
+<div class="h-full bg-primary-container w-[85%] animate-pulse"></div>
+</div>
+</div>
+</div>
+<!-- Status Bar -->
+<footer class="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-8 bg-black/40 backdrop-blur-md px-8 py-3 rounded-full border border-white/5 font-label-mono text-[11px] uppercase tracking-widest text-on-surface-variant">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-primary-container animate-pulse"></span>
+                Now Playing: <span class="text-white">Synthetic_Dimensions.wav</span>
+</div>
+<div class="h-3 w-px bg-white/10"></div>
+<div class="flex items-center gap-4">
+<span>FPS: 60.0</span>
+<span>Cam: WASD to Move</span>
+</div>
+</footer>
+</div>
+<!-- UI Interaction Script -->
+<script>
+        function toggleState() {
+            document.body.classList.toggle('playing');
+        }
+
+        // Keyboard triggers
+        document.addEventListener('keydown', (e) => {
+            if (e.key.toLowerCase() === 'p') {
+                toggleState();
+            }
+        });
+
+        // Atmospheric interaction: subtle movement of canvas image
+        document.addEventListener('mousemove', (e) => {
+            const x = e.clientX / window.innerWidth;
+            const y = e.clientY / window.innerHeight;
+            const canvasImg = document.querySelector('#canvas-container img');
+            if (canvasImg) {
+                canvasImg.style.transform = `scale(1.1) translate(${(x - 0.5) * 20}px, ${(y - 0.5) * 20}px)`;
+            }
+        });
+    </script>
+</body></html>
