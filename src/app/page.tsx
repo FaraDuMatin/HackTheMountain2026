@@ -1,65 +1,135 @@
-import Image from "next/image";
+'use client'
+
+import { useRef, useEffect, useCallback, useState, useTransition } from 'react'
+import { uploadAudio } from './actions'
+import { setupAudioAnalyser, setupAudioAnalyserFromUrl, type AudioSetup } from '@/lib/util'
+import { startFFT3DVisualizer } from '@/lib/3d-visualization'
+
+const DEFAULT_SONG = '/default.mp3'
 
 export default function Home() {
+  const mountRef = useRef<HTMLDivElement>(null)
+  const stopVisualizerRef = useRef<(() => void) | null>(null)
+  const contextRef = useRef<AudioContext | null>(null)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const [status, setStatus] = useState('Press P to play default song, or upload an MP3')
+  const [isLoaded, setIsLoaded] = useState(false)
+  const [isPending, startTransition] = useTransition()
+
+  const startVisualizer = useCallback((setup: AudioSetup) => {
+    contextRef.current = setup.context
+    audioRef.current = setup.audio
+    if (mountRef.current) {
+      stopVisualizerRef.current?.()
+      stopVisualizerRef.current = startFFT3DVisualizer(setup.analyser, mountRef.current, setup.audio)
+    }
+    setIsLoaded(true)
+    setStatus('Playing — P to pause | click scene to look around | WASD to move')
+  }, [])
+
+  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    stopVisualizerRef.current?.()
+    audioRef.current?.pause()
+    contextRef.current?.close()
+    setStatus('Uploading to server…')
+
+    const formData = new FormData()
+    formData.append('audio', file)
+
+    startTransition(async () => {
+      console.log(`[page] Sending to server: "${file.name}" (${(file.size / 1024 / 1024).toFixed(2)} MB)`)
+
+      let base64: string
+      try {
+        base64 = await uploadAudio(formData)
+        console.log('[page] Server action succeeded, decoding audio…')
+        setStatus('Server processed. Starting playback…')
+      } catch (err) {
+        console.error('[page] Server action failed:', err)
+        setStatus(`Server error: ${(err as Error).message}`)
+        return
+      }
+
+      try {
+        const setup = await setupAudioAnalyser(base64)
+        startVisualizer(setup)
+      } catch (err) {
+        console.error('[page] Audio decode/playback failed:', err)
+        setStatus(`Playback error: ${(err as Error).message}`)
+      }
+    })
+  }, [startVisualizer])
+
+  useEffect(() => {
+    const handleKey = async (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== 'p') return
+
+      const audio = audioRef.current
+
+      // No audio loaded yet — start the default song
+      if (!audio) {
+        setStatus('Loading default song…')
+        try {
+          const setup = await setupAudioAnalyserFromUrl(DEFAULT_SONG)
+          startVisualizer(setup)
+        } catch (err) {
+          console.error('[page] Failed to load default song:', err)
+          setStatus(`Failed to load default song: ${(err as Error).message}`)
+        }
+        return
+      }
+
+      // Audio already loaded — toggle pause/play on the <audio> element.
+      // This also updates Chrome's tab media controls.
+      if (audio.paused) {
+        await audio.play()
+        setStatus('Playing — P to pause | click scene to look around | WASD to move')
+      } else {
+        audio.pause()
+        setStatus('Paused — press P to resume')
+      }
+    }
+
+    window.addEventListener('keydown', handleKey)
+    return () => {
+      window.removeEventListener('keydown', handleKey)
+      stopVisualizerRef.current?.()
+      audioRef.current?.pause()
+      contextRef.current?.close()
+    }
+  }, [startVisualizer])
+
+  const uploadButton = (
+    <label className="flex items-center justify-center px-4 py-2 bg-blue-500 text-white rounded-lg cursor-pointer hover:bg-blue-600 transition select-none text-sm shadow-lg">
+      <input
+        type="file"
+        accept=".mp3,audio/mpeg"
+        className="hidden"
+        onChange={handleFileChange}
+        disabled={isPending}
+      />
+      {isPending ? 'Processing…' : 'Upload MP3'}
+    </label>
+  )
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="relative w-screen h-screen overflow-hidden bg-zinc-950">
+      <div ref={mountRef} className="absolute inset-0" />
+
+      {isLoaded ? (
+        <div className="absolute top-4 right-4 flex flex-col items-end gap-2 z-10">
+          {uploadButton}
+          <p className="text-zinc-400 text-xs text-right">{status}</p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+      ) : (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 z-10">
+          {uploadButton}
+          <p className="text-zinc-400 text-sm">{status}</p>
         </div>
-      </main>
+      )}
     </div>
-  );
+  )
 }
