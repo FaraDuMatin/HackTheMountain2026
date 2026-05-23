@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import { NUM_FFT_POINTS } from './util'
-import { extractFeatures } from './audio-features'
+import { createNormalizedExtractor } from './audio-features'
 import { directMapper } from './spatial-mapping'
 import { bassHueMapper } from './color-mapping'
 import { createPointCloud } from './point-cloud'
@@ -132,6 +132,9 @@ export function startFFT3DVisualizer(
   axes.position.set(-40, -40, -40)
   scene.add(axes)
 
+  // --- Audio feature extractor with rolling normalization ---
+  const extractFeatures = createNormalizedExtractor()
+
   // --- Point cloud system ---
   const pointCloud = createPointCloud(scene, {
     maxPoints: 200,
@@ -166,10 +169,6 @@ export function startFFT3DVisualizer(
         const features = extractFeatures(dataArray)
         const position = directMapper(features, elapsed)
         const color = bassHueMapper(features)
-        console.log(
-          `[emit] pos=(${position.x.toFixed(1)}, ${position.y.toFixed(1)}, ${position.z.toFixed(1)})  ` +
-          `| bass=${features.bass.toFixed(2)} mid=${features.mid.toFixed(2)} high=${features.high.toFixed(2)}`,
-        )
         pointCloud.emit(position, color)
       }
     }
