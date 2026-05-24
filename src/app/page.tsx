@@ -235,6 +235,9 @@ export default function Home() {
         onSpeedChange={(n) => visualizerRef.current?.setCameraSpeed(n)}
         onSensitivityChange={(n) => visualizerRef.current?.setCameraSensitivity(n)}
         onTrailLengthChange={(n) => visualizerRef.current?.setTrailLength(n)}
+        onShapeChange={(s) => visualizerRef.current?.setPointShape(s)}
+        onTrailStyleChange={(s) => visualizerRef.current?.setTrailStyle(s)}
+        onTrailCurveChange={(c) => visualizerRef.current?.setTrailCurve(c)}
       />
 
       {isLoaded ? (

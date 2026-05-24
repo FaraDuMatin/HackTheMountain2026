@@ -3,18 +3,51 @@
 import { useState } from 'react'
 import { DEFAULT_CAMERA_SPEED, DEFAULT_CAMERA_SENSITIVITY } from '@/lib/3d-scene'
 import { DEFAULT_TRAIL_POINTS, TRAIL_BUFFER_SIZE } from '@/lib/3d-visualization'
+import { type PointShape } from '@/lib/point-cloud'
+import { type TrailStyle, type TrailCurve } from '@/lib/trail'
+
+const SHAPES: { value: PointShape; label: string }[] = [
+  { value: 'sphere',       label: 'Sphere' },
+  { value: 'dodecahedron', label: 'Dodeca' },
+  { value: 'torus',        label: 'Torus' },
+  { value: 'torusKnot',    label: 'Torus Knot' },
+]
+
+const STYLES: { value: TrailStyle; label: string }[] = [
+  { value: 'line',      label: 'Line' },
+  { value: 'ribbon',    label: 'Ribbon' },
+  { value: 'particles', label: 'Particles' },
+]
+
+const CURVES: { value: TrailCurve; label: string }[] = [
+  { value: 'straight', label: 'Straight' },
+  { value: 'curved',   label: 'Curved' },
+]
 
 interface Props {
   onSpeedChange: (n: number) => void
   onSensitivityChange: (n: number) => void
   onTrailLengthChange: (n: number) => void
+  onShapeChange: (shape: PointShape) => void
+  onTrailStyleChange: (style: TrailStyle) => void
+  onTrailCurveChange: (curve: TrailCurve) => void
 }
 
-export function CameraSettings({ onSpeedChange, onSensitivityChange, onTrailLengthChange }: Props) {
+export function CameraSettings({
+  onSpeedChange,
+  onSensitivityChange,
+  onTrailLengthChange,
+  onShapeChange,
+  onTrailStyleChange,
+  onTrailCurveChange,
+}: Props) {
   const [isOpen, setIsOpen] = useState(false)
   const [speed, setSpeed] = useState(DEFAULT_CAMERA_SPEED)
   const [sensitivity, setSensitivity] = useState(DEFAULT_CAMERA_SENSITIVITY)
   const [trailLength, setTrailLength] = useState(DEFAULT_TRAIL_POINTS)
+  const [shape, setShape] = useState<PointShape>('sphere')
+  const [trailStyle, setTrailStyle] = useState<TrailStyle>('line')
+  const [trailCurve, setTrailCurve] = useState<TrailCurve>('straight')
 
   const handleSpeed = (n: number) => {
     setSpeed(n)
@@ -27,6 +60,18 @@ export function CameraSettings({ onSpeedChange, onSensitivityChange, onTrailLeng
   const handleTrailLength = (n: number) => {
     setTrailLength(n)
     onTrailLengthChange(n)
+  }
+  const handleShape = (s: PointShape) => {
+    setShape(s)
+    onShapeChange(s)
+  }
+  const handleTrailStyle = (s: TrailStyle) => {
+    setTrailStyle(s)
+    onTrailStyleChange(s)
+  }
+  const handleTrailCurve = (c: TrailCurve) => {
+    setTrailCurve(c)
+    onTrailCurveChange(c)
   }
 
   return (
@@ -104,6 +149,69 @@ export function CameraSettings({ onSpeedChange, onSensitivityChange, onTrailLeng
                 onChange={e => handleTrailLength(parseInt(e.target.value))}
                 className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
               />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-slate-300 text-xs font-medium uppercase tracking-wide">
+                Point Shape
+              </label>
+              <div className="grid grid-cols-2 gap-1.5">
+                {SHAPES.map(s => (
+                  <button
+                    key={s.value}
+                    onClick={() => handleShape(s.value)}
+                    className={`px-2 py-1.5 rounded text-xs font-medium transition duration-200 border cursor-pointer ${
+                      shape === s.value
+                        ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400'
+                        : 'bg-slate-800 border-slate-600 text-slate-400 hover:text-slate-200 hover:border-slate-500'
+                    }`}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-slate-300 text-xs font-medium uppercase tracking-wide">
+                Trail Style
+              </label>
+              <div className="grid grid-cols-3 gap-1.5">
+                {STYLES.map(s => (
+                  <button
+                    key={s.value}
+                    onClick={() => handleTrailStyle(s.value)}
+                    className={`px-2 py-1.5 rounded text-xs font-medium transition duration-200 border cursor-pointer ${
+                      trailStyle === s.value
+                        ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400'
+                        : 'bg-slate-800 border-slate-600 text-slate-400 hover:text-slate-200 hover:border-slate-500'
+                    }`}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-slate-300 text-xs font-medium uppercase tracking-wide">
+                Trail Curve
+              </label>
+              <div className="grid grid-cols-2 gap-1.5">
+                {CURVES.map(c => (
+                  <button
+                    key={c.value}
+                    onClick={() => handleTrailCurve(c.value)}
+                    className={`px-2 py-1.5 rounded text-xs font-medium transition duration-200 border cursor-pointer ${
+                      trailCurve === c.value
+                        ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400'
+                        : 'bg-slate-800 border-slate-600 text-slate-400 hover:text-slate-200 hover:border-slate-500'
+                    }`}
+                  >
+                    {c.label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>

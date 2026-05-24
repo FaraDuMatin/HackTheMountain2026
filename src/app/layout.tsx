@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SoundEyes — 3D Music Visualizer",
+  title: "SightHearing",
   description: "Sound to 3D visualization",
 };
 

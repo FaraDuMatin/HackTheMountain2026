@@ -1,4 +1,7 @@
 import * as THREE from 'three'
+import { Line2 } from 'three/examples/jsm/lines/Line2.js'
+import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js'
+import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js'
 import { createScene } from './3d-scene'
 import type { ArtworkData, ArtworkTrail } from './artwork-data'
 
@@ -6,7 +9,84 @@ import type { ArtworkData, ArtworkTrail } from './artwork-data'
 // /art/[id] — same scene chrome as the live visualizer (camera, helpers,
 // WASD controls) but no audio, no point clouds, no trail growth.
 
-function buildLine(trail: ArtworkTrail, blending: THREE.Blending | null): THREE.Line {
+// Must match the live visualizer's ribbon thickness / particle sizes so the
+// captured artwork visually matches the live view.
+const RIBBON_LINEWIDTH = 4
+const PARTICLE_SIZE_MAIN = 0.8
+const PARTICLE_SIZE_GLOW = 2.0
+
+type TrailRenderer = {
+  object: THREE.Object3D
+  dispose(): void
+}
+
+function buildTrail(trail: ArtworkTrail, blending: THREE.Blending | null): TrailRenderer {
+  const style = trail.style ?? 'line'
+
+  if (style === 'ribbon') {
+    const geometry = new LineGeometry()
+    if (trail.positions.length >= 6) {
+      geometry.setPositions(trail.positions)
+      geometry.setColors(trail.colors)
+    }
+    const material = new LineMaterial({
+      linewidth: RIBBON_LINEWIDTH,
+      vertexColors: true,
+      worldUnits: false,
+    })
+    if (blending) {
+      material.blending = blending
+      material.transparent = true
+      material.depthWrite = false
+    }
+    const updateRes = () => {
+      material.resolution.set(window.innerWidth, window.innerHeight)
+    }
+    updateRes()
+    window.addEventListener('resize', updateRes)
+
+    const line = new Line2(geometry, material)
+    line.frustumCulled = false
+    return {
+      object: line,
+      dispose() {
+        geometry.dispose()
+        material.dispose()
+        window.removeEventListener('resize', updateRes)
+      },
+    }
+  }
+
+  if (style === 'particles') {
+    const positions = new Float32Array(trail.positions)
+    const colors = new Float32Array(trail.colors)
+    const geometry = new THREE.BufferGeometry()
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+
+    const material = new THREE.PointsMaterial({
+      vertexColors: true,
+      size: blending ? PARTICLE_SIZE_GLOW : PARTICLE_SIZE_MAIN,
+      sizeAttenuation: true,
+    })
+    if (blending) {
+      material.blending = blending
+      material.transparent = true
+      material.depthWrite = false
+    }
+
+    const points = new THREE.Points(geometry, material)
+    points.frustumCulled = false
+    return {
+      object: points,
+      dispose() {
+        geometry.dispose()
+        material.dispose()
+      },
+    }
+  }
+
+  // Default: thin line (also the fallback for legacy snapshots without `style`)
   const positions = new Float32Array(trail.positions)
   const colors = new Float32Array(trail.colors)
   const geometry = new THREE.BufferGeometry()
@@ -22,7 +102,13 @@ function buildLine(trail: ArtworkTrail, blending: THREE.Blending | null): THREE.
 
   const line = new THREE.Line(geometry, material)
   line.frustumCulled = false
-  return line
+  return {
+    object: line,
+    dispose() {
+      geometry.dispose()
+      material.dispose()
+    },
+  }
 }
 
 export function renderStaticArtwork(mount: HTMLDivElement, data: ArtworkData): () => void {
@@ -32,10 +118,10 @@ export function renderStaticArtwork(mount: HTMLDivElement, data: ArtworkData): (
     pitch: data.camera.pitch,
   })
 
-  const mainLine = buildLine(data.mainTrail, null)
-  const glowLine = buildLine(data.glowTrail, THREE.AdditiveBlending)
-  scene.add(mainLine)
-  scene.add(glowLine)
+  const mainTrail = buildTrail(data.mainTrail, null)
+  const glowTrail = buildTrail(data.glowTrail, THREE.AdditiveBlending)
+  scene.add(mainTrail.object)
+  scene.add(glowTrail.object)
 
   let animFrame: number
   const animate = () => {
@@ -47,12 +133,10 @@ export function renderStaticArtwork(mount: HTMLDivElement, data: ArtworkData): (
 
   return () => {
     cancelAnimationFrame(animFrame)
-    scene.remove(mainLine)
-    scene.remove(glowLine)
-    mainLine.geometry.dispose()
-    ;(mainLine.material as THREE.Material).dispose()
-    glowLine.geometry.dispose()
-    ;(glowLine.material as THREE.Material).dispose()
+    scene.remove(mainTrail.object)
+    scene.remove(glowTrail.object)
+    mainTrail.dispose()
+    glowTrail.dispose()
     disposeScene()
   }
 }

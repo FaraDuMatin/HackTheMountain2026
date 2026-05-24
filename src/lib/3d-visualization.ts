@@ -3,8 +3,8 @@ import { NUM_FFT_POINTS } from './util'
 import { createNormalizedExtractor } from './audio-features'
 import { directMapper } from './spatial-mapping'
 import { bassHueMapper } from './color-mapping'
-import { createPointCloud } from './point-cloud'
-import { createTrail } from './trail'
+import { createPointCloud, type PointShape } from './point-cloud'
+import { createTrail, type TrailStyle, type TrailCurve } from './trail'
 import { createScene } from './3d-scene'
 import type { ArtworkData } from './artwork-data'
 
@@ -16,6 +16,9 @@ export type VisualizerHandle = {
   setCameraSpeed(n: number): void
   setCameraSensitivity(n: number): void
   setTrailLength(n: number): void
+  setPointShape(shape: PointShape): void
+  setTrailStyle(style: TrailStyle): void
+  setTrailCurve(curve: TrailCurve): void
 }
 
 export const TRAIL_BUFFER_SIZE = 1000   // pre-allocated max — never changes
@@ -150,5 +153,8 @@ export function startFFT3DVisualizer(
     setCameraSpeed(n) { cameraController.setSpeed(n) },
     setCameraSensitivity(n) { cameraController.setSensitivity(n) },
     setTrailLength(n) { mainTrail.setMaxPoints(n); glowTrail.setMaxPoints(n) },
+    setPointShape(shape) { pointCloud.setShape(shape); glowCloud.setShape(shape) },
+    setTrailStyle(style) { mainTrail.setStyle(style); glowTrail.setStyle(style) },
+    setTrailCurve(curve) { mainTrail.setCurve(curve); glowTrail.setCurve(curve) },
   }
 }
