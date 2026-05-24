@@ -10,7 +10,7 @@ export type AudioFeatures = {
 const USE_PRESET_NORM = true
 
 const PRESET_NORM = {
-  bass: { min: 0.9464052319526672, max: 1 },
+  bass: { min: 0.9364052319526672, max: 1 },
   mid:  { min: 0.8199346661567688, max: 0.9245098233222961 },
   high: { min: 0.32000693678855896, max: 0.4355717599391937 },
 }
@@ -22,7 +22,7 @@ const PRESET_NORM = {
 const USE_PRESET_NORM_MIC = true
 
 const PRESET_NORM_MIC = {
-  bass: { min: 0.54248366951942444, max: 1 },
+  bass: { min: 0.54248366951942444, max: 0.90 },
   mid:  { min: 0.2,  max: 0.52679738998413086 },
   high: { min: 0.04,                max: 0.1492104709148407 },
 }

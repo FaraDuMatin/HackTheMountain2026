@@ -11,9 +11,10 @@ import type { ArtworkData, ArtworkTrail } from './artwork-data'
 
 // Must match the live visualizer's ribbon thickness / particle sizes so the
 // captured artwork visually matches the live view.
-const RIBBON_LINEWIDTH = 4
-const PARTICLE_SIZE_MAIN = 0.8
-const PARTICLE_SIZE_GLOW = 2.0
+const RIBBON_LINEWIDTH_MAIN = 4
+const RIBBON_LINEWIDTH_GLOW = 8
+const PARTICLE_SIZE_MAIN = 2.0
+const PARTICLE_SIZE_GLOW = 4.0
 
 type TrailRenderer = {
   object: THREE.Object3D
@@ -30,7 +31,7 @@ function buildTrail(trail: ArtworkTrail, blending: THREE.Blending | null): Trail
       geometry.setColors(trail.colors)
     }
     const material = new LineMaterial({
-      linewidth: RIBBON_LINEWIDTH,
+      linewidth: blending ? RIBBON_LINEWIDTH_GLOW : RIBBON_LINEWIDTH_MAIN,
       vertexColors: true,
       worldUnits: false,
     })

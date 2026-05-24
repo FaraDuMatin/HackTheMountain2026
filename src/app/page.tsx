@@ -11,7 +11,6 @@ import { MicButton } from '@/components/MicButton'
 import { CaptureButton } from '@/components/CaptureButton'
 import { CameraSettings } from '@/components/CameraSettings'
 
-const DEFAULT_SONG = '/default.mp3'
 
 export default function Home() {
   const mountRef = useRef<HTMLDivElement>(null)
@@ -23,7 +22,7 @@ export default function Home() {
   const micRef = useRef<MicSetup | null>(null)
   const isMicActiveRef = useRef(false)
   const micAnalyserRef = useRef<AnalyserNode | null>(null)
-  const [status, setStatus] = useState('Press P to play default song, upload an MP3, or use your microphone')
+  const [status, setStatus] = useState('Press 1–0 to pick a song, upload an MP3, or use your microphone')
   const [isLoaded, setIsLoaded] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [isYtPending, setIsYtPending] = useState(false)
@@ -129,7 +128,7 @@ export default function Home() {
         ? 'Playing — P to pause | click scene to look around | WASD to move'
         : audio
           ? 'Paused — press P to resume'
-          : 'Press P to play default song, upload an MP3, or use your microphone')
+          : 'Press 1–0 to pick a song, upload an MP3, or use your microphone')
       return
     }
 
@@ -180,20 +179,22 @@ export default function Home() {
         captureButtonRef.current?.click()
         return
       }
-      if (key !== 'p') return
-      const audio = audioRef.current
-      if (!audio) {
-        setStatus('Loading default song…')
+      // Number keys 1–0 load the matching default song
+      if (/^[0-9]$/.test(e.key)) {
+        setStatus(`Loading default${e.key}.mp3…`)
         try {
           teardown()
-          const setup = await setupAudioAnalyserFromUrl(DEFAULT_SONG)
+          const setup = await setupAudioAnalyserFromUrl(`/default${e.key}.mp3`)
           startVisualizer(setup)
         } catch (err) {
-          console.error('[page] Failed to load default song:', err)
-          setStatus(`Failed to load default song: ${(err as Error).message}`)
+          console.error(`[page] Failed to load default${e.key}.mp3:`, err)
+          setStatus(`Failed to load default${e.key}.mp3: ${(err as Error).message}`)
         }
         return
       }
+      if (key !== 'p') return
+      const audio = audioRef.current
+      if (!audio) return
       if (audio.paused) {
         await audio.play()
         setStatus('Playing — P to pause | click scene to look around | WASD to move')
@@ -238,6 +239,7 @@ export default function Home() {
         onShapeChange={(s) => visualizerRef.current?.setPointShape(s)}
         onTrailStyleChange={(s) => visualizerRef.current?.setTrailStyle(s)}
         onTrailCurveChange={(c) => visualizerRef.current?.setTrailCurve(c)}
+        onWireframeChange={(v) => visualizerRef.current?.setWireframe(v)}
       />
 
       {isLoaded ? (

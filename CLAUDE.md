@@ -18,18 +18,19 @@ Turns sound into 3D artwork. Three input sources (MP3 upload, YouTube URL, live 
 4. `directMapper(features, t)` → `THREE.Vector3` (X = bass, Y = mid, Z = high, centered, with jitter) inside the `[-40, 40]³` cube
 5. `bassHueMapper(features)` → `THREE.Color` (active color mapper; `rgbFromFeaturesMapper` is the alternate)
 6. Two parallel rendering layers:
-   - **`pointCloud`** — InstancedMesh sphere pool, fading age-based (5 s lifetime, 200 instances)
-   - **`mainTrail`** — `THREE.Line` with `vertexColors: true` and a sliding window of `MAX_TRAIL_POINTS` (currently **50** — hackathon prototype value; was 5000 originally, lowered for testing)
+   - **`pointCloud`** — InstancedMesh pool, age-based fade (5 s lifetime, 200 instances). Geometry is runtime-swappable via `setShape`: `sphere | dodecahedron | torus | torusKnot`.
+   - **`mainTrail`** — sliding window of control points (pre-allocated `TRAIL_BUFFER_SIZE=1000`, starting visible cap `DEFAULT_TRAIL_POINTS=50`). The control points feed a `MeshAdapter` selected by `setStyle`: `line` (`THREE.Line`, 1px), `ribbon` (`Line2` from three/examples, 4px screen-space, vertex colors), or `particles` (`THREE.Points`, world-space dots). Independently, `setCurve('curved')` densifies the path through a `CatmullRomCurve3` at 8× sub-vertices per control segment, with linear color interpolation between control colors.
 7. When mic is active, a **separate mic-only analyser** drives:
-   - `glowCloud` — large additive-blended spheres (`THREE.AdditiveBlending`, pointSize 3.0)
-   - `glowTrail` — additive line trail, same sliding-window cap
+   - `glowCloud` — additive-blended layer, same shape options as `pointCloud` (currently mirrored), pointSize 3.0, lifetime 2 s, 100 instances
+   - `glowTrail` — additive variant of the trail, same style/curve as `mainTrail` (the visualizer always applies style/curve/shape changes to both layers)
    - Both gated by a noise-floor sum check (`micSum > 400`) so silence emits nothing
+8. All visual parameters above are exposed in the ⚙️ **CameraSettings** panel (top-left): camera speed/sensitivity sliders, trail length slider, point-shape picker, trail-style picker, trail-curve picker.
 
 ### Capture & share
-- `visualizerRef.current.snapshot()` returns `ArtworkData` (both trails as plain number arrays + camera position/yaw/pitch + version + timestamp)
+- `visualizerRef.current.snapshot()` returns `ArtworkData` (both trails as plain number arrays + per-trail `style` + camera position/yaw/pitch + version + timestamp). Curve mode is **baked into** the positions (densified samples), so it doesn't need to be stored separately. Point-shape is **not** stored — the static viewer doesn't render point clouds.
 - `saveArtworkAction(data)` → `nanoid(10)` ID → `saveArtwork(id, data)` → returns ID
 - Storage is **hybrid** (`src/lib/artwork-storage.ts`, `import 'server-only'`): Vercel Blob when `BLOB_READ_WRITE_TOKEN` is set (or OIDC-injected `BLOB_STORE_ID` in production), local `./tmp/artworks/{id}.json` otherwise
-- `/art/{id}` route loads the data server-side, hydrates `<ArtworkViewer>` which calls `renderStaticArtwork()` to rebuild the scene at the saved camera angle from the saved trail buffers — no FFT, no audio, no animation loop
+- `/art/{id}` route loads the data server-side, hydrates `<ArtworkViewer>` which calls `renderStaticArtwork()` to rebuild the scene at the saved camera angle. The viewer branches per trail's `style` to construct `THREE.Line` / `Line2` / `THREE.Points` — captured ribbon and particle trails look the same as live. Old snapshots without `style` default to `'line'`.
 
 ### Key files
 
@@ -40,11 +41,11 @@ Turns sound into 3D artwork. Three input sources (MP3 upload, YouTube URL, live 
 - `src/app/ui-test/page.tsx` — older standalone test page (no mic / no capture, kept for isolated visualizer debugging)
 
 #### 3D & audio (`src/lib/`)
-- `3d-visualization.ts` — `startFFT3DVisualizer(analyser, mount, audio, liveInputRef?, micAnalyserRef?)` → returns `VisualizerHandle { stop(), snapshot() }`. Owns the draw loop, both clouds, both trails. Uses `createScene()` for renderer/camera setup.
-- `3d-scene.ts` — `createScene(mount, init?)` → `{ scene, camera, renderer, cameraController, dispose }`. Extracted so the static viewer can reuse identical scene setup. `init?` lets the static viewer restore camera position/yaw/pitch.
-- `static-viewer.ts` — `renderStaticArtwork(mount, data)` for the `/art/{id}` route. Builds two `THREE.Line` objects from the saved float arrays, mounts them in a `createScene()` initialized with saved camera. Returns a cleanup fn for React `useEffect`.
-- `trail.ts` — `createTrail(scene, { maxPoints, blending? })` → `{ extend(pos, color), snapshot(), dispose() }`. Sliding window via `Float32Array.copyWithin(0, 3, maxPoints * 3)` when full. `snapshot()` returns plain `number[]` arrays (JSON-safe).
-- `point-cloud.ts` — `createPointCloud(scene, opts)` → `{ emit, update, dispose }`. InstancedMesh pool, age-based fade. Accepts `blending` for the additive glow variant.
+- `3d-visualization.ts` — `startFFT3DVisualizer(analyser, mount, audio, liveInputRef?, micAnalyserRef?)` → returns `VisualizerHandle` with `stop`, `snapshot`, `setCameraSpeed`, `setCameraSensitivity`, `setTrailLength`, `setPointShape`, `setTrailStyle`, `setTrailCurve`. Setters fan out to both main + glow layers.
+- `3d-scene.ts` — `createScene(mount, init?)` → `{ scene, camera, renderer, cameraController, dispose }`. Extracted so the static viewer can reuse identical scene setup. `init?` lets the static viewer restore camera position/yaw/pitch. `CameraController` exposes `setSpeed`/`setSensitivity` via closure-captured `let` bindings. Wireframe helpers (box/grid/axes) gated by the `SHOW_WIREFRAME` constant (currently `false`).
+- `static-viewer.ts` — `renderStaticArtwork(mount, data)` for the `/art/{id}` route. Branches per trail's `style`: `'line'` → `THREE.Line`, `'ribbon'` → `Line2` (with own `window.resize` listener for `LineMaterial.resolution`), `'particles'` → `THREE.Points`. Each branch returns `{ object, dispose }` for clean teardown. Old snapshots without `style` fall through the `style ?? 'line'` default.
+- `trail.ts` — `createTrail(scene, { maxPoints, initialCap?, blending?, style?, curve? })` → `{ extend, setMaxPoints, setStyle, setCurve, snapshot, isFull, dispose }`. Internally splits into **control points** (the emitted path, sliding-window via `copyWithin`) and **render buffer** (densified curve samples when `curve === 'curved'`). A `MeshAdapter` indirection swaps between Line / Line2 (ribbon) / Points (particles) adapters; switching style disposes the old adapter and rebuilds from existing control data. `snapshot()` returns `{ positions, colors, style }` — JSON-safe.
+- `point-cloud.ts` — `createPointCloud(scene, { maxPoints, lifetimeSec, pointSize, blending?, shape? })` → `{ emit, update, setShape, dispose }`. `setShape(shape)` disposes the old `InstancedMesh` and creates a new one with the picked geometry (closures capture the `let mesh` binding so `emit`/`update`/`dispose` automatically use the new mesh).
 - `mic.ts` — `setupMic(context, mainAnalyser, gain)` → `{ gainNode, micAnalyser, stop }`. Mic source mixed into `mainAnalyser` (so main trail responds to mic too) AND tapped into a separate `micAnalyser` (lower smoothing 0.3) for the glow layer.
 - `audio-features.ts` — `extractFeatures(fft)`, `createNormalizedExtractor(usePresetMusic = true)`. Two preset blocks at the top: `PRESET_NORM` (music) and `PRESET_NORM_MIC` (mic). Both currently enabled — toggle the `USE_PRESET_NORM*` constants to switch to rolling-window mode.
 - `spatial-mapping.ts` — `directMapper` (active), `timeMapper` (alternate)
@@ -54,7 +55,8 @@ Turns sound into 3D artwork. Three input sources (MP3 upload, YouTube URL, live 
 - `artwork-storage.ts` — `saveArtwork(id, data)` / `loadArtwork(id)`, hybrid Blob/filesystem. `'server-only'` import — must never end up in a client bundle.
 
 #### Components (`src/components/`)
-- `UploadMp3Button.tsx`, `YoutubeImportButton.tsx`, `MicButton.tsx` (with gain slider), `CaptureButton.tsx` (amber, shows share URL + copy button after success), `ArtworkViewer.tsx`
+- `UploadMp3Button.tsx`, `YoutubeImportButton.tsx`, `MicButton.tsx` (with gain slider), `CaptureButton.tsx` (`forwardRef`'d so the **C** key can `.click()` it; shows share URL + copy button after success), `ArtworkViewer.tsx`
+- `CameraSettings.tsx` — top-left ⚙️ panel. Three sliders (movement speed, mouse sensitivity, trail length) + three button rows (point shape 4-way, trail style 3-way, trail curve 2-way). Wired through `Props` callbacks → `visualizerRef.current?.setXxx(...)` in `page.tsx`. All controls are no-ops if the visualizer isn't running.
 
 ### Architecture decisions
 - **FFT runs client-side only.** Server actions handle upload/validation/transcoding; decoding + analysis happens in the browser. Snapshots are serialized client-side and posted to a server action for storage.
@@ -67,10 +69,11 @@ Turns sound into 3D artwork. Three input sources (MP3 upload, YouTube URL, live 
 ### Controls
 - **P** — play default song (first press) or toggle pause/resume
 - **M** — toggle microphone on/off
+- **C** — trigger the Capture button (proxies through the `captureButtonRef.current?.click()` so the share-URL UI state updates correctly)
 - **Click scene** — `requestPointerLock` for mouse look
 - **WASD** — move forward/left/right/back
 - **Space / Shift** — move up / down
-- **Capture button** — snapshot current trails → save → reveal share URL
+- **⚙️ panel (top-left)** — runtime tweak camera, trail length, point shape, trail style, trail curve
 
 ### Config & environment
 - `next.config.ts` — `serverActions.bodySizeLimit: '50mb'` (MP3s exceed the 1 MB default), `reactCompiler: true`, `experimental.serverActions`
@@ -83,7 +86,7 @@ Turns sound into 3D artwork. Three input sources (MP3 upload, YouTube URL, live 
 #### `3d-scene.ts`
 | Constant | Default | Effect |
 |---|---|---|
-| `SHOW_WIREFRAME` | `true` | Show/hide wireframe box + grid floor + axes helper |
+| `SHOW_WIREFRAME` | `false` | Show/hide wireframe box + grid floor + axes helper |
 | `DEFAULT_CAMERA_SPEED` | `0.9` | Starting WASD movement speed (units/frame); exposed in ⚙️ slider |
 | `DEFAULT_CAMERA_SENSITIVITY` | `0.003` | Starting mouse look sensitivity (rad/px); exposed in ⚙️ slider |
 | `DEFAULT_CAM_POS` | `(0, 50, 130)` | Initial camera position |
@@ -100,6 +103,17 @@ Turns sound into 3D artwork. Three input sources (MP3 upload, YouTube URL, live 
 Point-cloud params (passed inline to `createPointCloud`):
 - Main cloud: `maxPoints 200`, `lifetimeSec 5`, `pointSize 0.4`
 - Glow cloud: `maxPoints 100`, `lifetimeSec 2`, `pointSize 3.0`, `AdditiveBlending`
+- Shape defaults to `'sphere'` (SphereGeometry(1,8,8)) — swapped at runtime via `setPointShape`. Available: `sphere` / `dodecahedron` / `torus` / `torusKnot`. Mirrored to both main + glow.
+
+#### `trail.ts`
+| Constant | Default | Effect |
+|---|---|---|
+| `CURVE_SUBDIV` | `8` | Sub-vertices per control-point segment when `curve === 'curved'`. Higher = smoother arcs, more vertices uploaded per emit |
+| `RIBBON_LINEWIDTH` | `4` | Pixel width of ribbon trail (`Line2`, `worldUnits: false`) |
+| `PARTICLE_SIZE_MAIN` | `0.8` | World-unit point size for the main trail when style = `'particles'` |
+| `PARTICLE_SIZE_GLOW` | `2.0` | World-unit point size for the glow trail when style = `'particles'` |
+
+The same `RIBBON_LINEWIDTH` and `PARTICLE_SIZE_*` are duplicated in `static-viewer.ts` so captured artworks render at the same scale. Keep them in sync if tuning.
 
 #### `audio-features.ts`
 | Constant | Default | Effect |

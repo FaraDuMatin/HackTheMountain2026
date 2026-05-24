@@ -19,6 +19,7 @@ export type VisualizerHandle = {
   setPointShape(shape: PointShape): void
   setTrailStyle(style: TrailStyle): void
   setTrailCurve(curve: TrailCurve): void
+  setWireframe(v: boolean): void
 }
 
 export const TRAIL_BUFFER_SIZE = 1000   // pre-allocated max — never changes
@@ -31,7 +32,7 @@ export function startFFT3DVisualizer(
   liveInputRef?: { current: boolean },       // true while mic is active — keeps main FFT sampling when audio is paused
   micAnalyserRef?: { current: AnalyserNode | null },  // mic-only FFT tap → glow cloud
 ): VisualizerHandle {
-  const { scene, camera, renderer, cameraController, dispose: disposeScene } = createScene(mount)
+  const { scene, camera, renderer, cameraController, setWireframe, dispose: disposeScene } = createScene(mount)
 
   // --- Audio feature extractor with rolling normalization ---
   const extractFeatures = createNormalizedExtractor()
@@ -43,7 +44,7 @@ export function startFFT3DVisualizer(
   const pointCloud = createPointCloud(scene, {
     maxPoints: 200,
     lifetimeSec: 5,
-    pointSize: 0.4,
+    pointSize: 3.0,
   })
 
   // Glow layer: large additive-blended spheres emitted only during mic input.
@@ -51,7 +52,7 @@ export function startFFT3DVisualizer(
   const glowCloud = createPointCloud(scene, {
     maxPoints: 100,
     lifetimeSec: 2,
-    pointSize: 3.0,
+    pointSize: 6.0,
     blending: THREE.AdditiveBlending,
   })
 
@@ -156,5 +157,6 @@ export function startFFT3DVisualizer(
     setPointShape(shape) { pointCloud.setShape(shape); glowCloud.setShape(shape) },
     setTrailStyle(style) { mainTrail.setStyle(style); glowTrail.setStyle(style) },
     setTrailCurve(curve) { mainTrail.setCurve(curve); glowTrail.setCurve(curve) },
+    setWireframe(v) { setWireframe(v) },
   }
 }

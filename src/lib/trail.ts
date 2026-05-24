@@ -35,12 +35,13 @@ type TrailOptions = {
 const CURVE_SUBDIV = 8
 
 // Ribbon thickness in screen pixels (Line2 worldUnits=false).
-const RIBBON_LINEWIDTH = 4
+const RIBBON_LINEWIDTH_MAIN = 4
+const RIBBON_LINEWIDTH_GLOW = 8
 
 // Particle sizes (world units, sizeAttenuation=true). Glow trail gets a larger
 // size to match the existing pointCloud/glowCloud visual hierarchy.
-const PARTICLE_SIZE_MAIN = 0.8
-const PARTICLE_SIZE_GLOW = 2.0
+const PARTICLE_SIZE_MAIN = 2.0
+const PARTICLE_SIZE_GLOW = 4.0
 
 type MeshAdapter = {
   update(positions: Float32Array, colors: Float32Array, count: number): void
@@ -102,7 +103,7 @@ export function createTrail(scene: THREE.Scene, opts: TrailOptions): Trail {
   const createRibbonAdapter = (): MeshAdapter => {
     const geometry = new LineGeometry()
     const material = new LineMaterial({
-      linewidth: RIBBON_LINEWIDTH,
+      linewidth: opts.blending ? RIBBON_LINEWIDTH_GLOW : RIBBON_LINEWIDTH_MAIN,
       vertexColors: true,
       worldUnits: false,
     })

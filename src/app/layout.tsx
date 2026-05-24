@@ -12,9 +12,30 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const SITE_URL = process.env.VERCEL_PROJECT_PRODUCTION_URL
+  ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+  : process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : "http://localhost:3000";
+
 export const metadata: Metadata = {
-  title: "SightHearing",
-  description: "Sound to 3D visualization",
+  metadataBase: new URL(SITE_URL),
+  title: "LuminaWave — Sound, Visualized",
+  description:
+    "Turn any song or your own voice into a 3D artwork you can fly through, capture, and share.",
+  openGraph: {
+    title: "LuminaWave — Sound, Visualized",
+    description:
+      "Turn any song or your own voice into a 3D artwork you can fly through, capture, and share.",
+    type: "website",
+    siteName: "LuminaWave",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "LuminaWave — Sound, Visualized",
+    description:
+      "Turn any song or your own voice into a 3D artwork you can fly through, capture, and share.",
+  },
 };
 
 export default function RootLayout({

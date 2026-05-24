@@ -31,6 +31,7 @@ interface Props {
   onShapeChange: (shape: PointShape) => void
   onTrailStyleChange: (style: TrailStyle) => void
   onTrailCurveChange: (curve: TrailCurve) => void
+  onWireframeChange: (v: boolean) => void
 }
 
 export function CameraSettings({
@@ -40,6 +41,7 @@ export function CameraSettings({
   onShapeChange,
   onTrailStyleChange,
   onTrailCurveChange,
+  onWireframeChange,
 }: Props) {
   const [isOpen, setIsOpen] = useState(false)
   const [speed, setSpeed] = useState(DEFAULT_CAMERA_SPEED)
@@ -48,6 +50,7 @@ export function CameraSettings({
   const [shape, setShape] = useState<PointShape>('sphere')
   const [trailStyle, setTrailStyle] = useState<TrailStyle>('line')
   const [trailCurve, setTrailCurve] = useState<TrailCurve>('straight')
+  const [showWireframe, setShowWireframe] = useState(false)
 
   const handleSpeed = (n: number) => {
     setSpeed(n)
@@ -72,6 +75,10 @@ export function CameraSettings({
   const handleTrailCurve = (c: TrailCurve) => {
     setTrailCurve(c)
     onTrailCurveChange(c)
+  }
+  const handleWireframe = (v: boolean) => {
+    setShowWireframe(v)
+    onWireframeChange(v)
   }
 
   return (
@@ -209,6 +216,27 @@ export function CameraSettings({
                     }`}
                   >
                     {c.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-slate-300 text-xs font-medium uppercase tracking-wide">
+                Wireframe
+              </label>
+              <div className="grid grid-cols-2 gap-1.5">
+                {([false, true] as const).map(v => (
+                  <button
+                    key={String(v)}
+                    onClick={() => handleWireframe(v)}
+                    className={`px-2 py-1.5 rounded text-xs font-medium transition duration-200 border cursor-pointer ${
+                      showWireframe === v
+                        ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400'
+                        : 'bg-slate-800 border-slate-600 text-slate-400 hover:text-slate-200 hover:border-slate-500'
+                    }`}
+                  >
+                    {v ? 'On' : 'Off'}
                   </button>
                 ))}
               </div>

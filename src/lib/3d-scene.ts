@@ -16,14 +16,12 @@ export type CameraController = {
 export const DEFAULT_CAMERA_SPEED = 0.9
 export const DEFAULT_CAMERA_SENSITIVITY = 0.003
 
-// Set to false to hide the wireframe box, grid floor, and axes helper.
-const SHOW_WIREFRAME = false
-
 export type SceneSetup = {
   scene: THREE.Scene
   camera: THREE.PerspectiveCamera
   renderer: THREE.WebGLRenderer
   cameraController: CameraController
+  setWireframe(v: boolean): void
   dispose(): void
 }
 
@@ -133,23 +131,31 @@ export function createScene(mount: HTMLDivElement, init: CameraInit = {}): Scene
   dirLight.position.set(10, 20, 10)
   scene.add(dirLight)
 
-  if (SHOW_WIREFRAME) {
-    const boxGeometry = new THREE.BoxGeometry(80, 80, 80)
-    const boxEdges = new THREE.EdgesGeometry(boxGeometry)
-    const boxLines = new THREE.LineSegments(
-      boxEdges,
-      new THREE.LineBasicMaterial({ color: 0x444466 }),
-    )
-    scene.add(boxLines)
-    boxGeometry.dispose()
+  // Wireframe helpers — always created so they can be toggled at runtime.
+  const boxGeometry = new THREE.BoxGeometry(80, 80, 80)
+  const boxEdges = new THREE.EdgesGeometry(boxGeometry)
+  const boxLines = new THREE.LineSegments(
+    boxEdges,
+    new THREE.LineBasicMaterial({ color: 0x444466 }),
+  )
+  boxLines.visible = false
+  scene.add(boxLines)
+  boxGeometry.dispose()
 
-    const grid = new THREE.GridHelper(80, 16, 0x333344, 0x222233)
-    grid.position.set(0, -40, 0)
-    scene.add(grid)
+  const grid = new THREE.GridHelper(80, 16, 0x333344, 0x222233)
+  grid.position.set(0, -40, 0)
+  grid.visible = false
+  scene.add(grid)
 
-    const axes = new THREE.AxesHelper(15)
-    axes.position.set(-40, -40, -40)
-    scene.add(axes)
+  const axes = new THREE.AxesHelper(15)
+  axes.position.set(-40, -40, -40)
+  axes.visible = false
+  scene.add(axes)
+
+  const setWireframe = (v: boolean) => {
+    boxLines.visible = v
+    grid.visible = v
+    axes.visible = v
   }
 
   const handleResize = () => {
@@ -168,5 +174,5 @@ export function createScene(mount: HTMLDivElement, init: CameraInit = {}): Scene
     }
   }
 
-  return { scene, camera, renderer, cameraController, dispose }
+  return { scene, camera, renderer, cameraController, setWireframe, dispose }
 }
