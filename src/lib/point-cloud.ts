@@ -10,11 +10,17 @@ type PointCloudOptions = {
   maxPoints: number
   lifetimeSec: number
   pointSize: number
+  blending?: THREE.Blending
 }
 
 export function createPointCloud(scene: THREE.Scene, opts: PointCloudOptions): PointCloudSystem {
   const geometry = new THREE.SphereGeometry(1, 12, 12)
   const material = new THREE.MeshBasicMaterial()
+  if (opts.blending) {
+    material.blending = opts.blending
+    material.transparent = true
+    material.depthWrite = false
+  }
   const mesh = new THREE.InstancedMesh(geometry, material, opts.maxPoints)
   mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage)
   // Disable frustum culling: Three.js computes the bounding sphere from initial

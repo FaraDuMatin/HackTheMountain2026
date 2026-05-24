@@ -3,7 +3,17 @@ export const NUM_FFT_POINTS = 128
 export type AudioSetup = {
   context: AudioContext
   analyser: AnalyserNode
-  audio: HTMLAudioElement
+  audio: HTMLAudioElement | null  // null = instrument-only mode (no MP3 loaded)
+}
+
+// Bootstrap an AudioContext + AnalyserNode with no source attached.
+// Used for mic-only mode. Sources connect directly to the analyser for FFT;
+// the analyser is intentionally NOT connected to destination to prevent mic echo.
+export function createSilentAnalyser(): AudioSetup {
+  const context = new AudioContext()
+  const analyser = context.createAnalyser()
+  analyser.fftSize = NUM_FFT_POINTS * 2
+  return { context, analyser, audio: null }
 }
 
 // Build an analyser around a real <audio> element. Using createMediaElementSource
@@ -27,8 +37,8 @@ async function buildAnalyser(src: string): Promise<AudioSetup> {
   })
 
   const source = audioContext.createMediaElementSource(audio)
-  source.connect(analyser)
-  analyser.connect(audioContext.destination)
+  source.connect(analyser)           // FFT tap
+  source.connect(audioContext.destination)  // playback — bypasses analyser so mic never echoes
   await audio.play()
 
   return { context: audioContext, analyser, audio }

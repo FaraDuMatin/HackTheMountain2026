@@ -4,6 +4,30 @@ export type AudioFeatures = {
   high: number  // 0–1
 }
 
+// ─── Preset normalization — music ────────────────────────────────────────────
+// Set USE_PRESET_NORM = true to lock the music normalizer to the ranges below.
+// Tweak PRESET_NORM values here whenever you find a range that looks great.
+const USE_PRESET_NORM = true
+
+const PRESET_NORM = {
+  bass: { min: 0.9464052319526672, max: 1 },
+  mid:  { min: 0.8199346661567688, max: 0.9245098233222961 },
+  high: { min: 0.32000693678855896, max: 0.4355717599391937 },
+}
+// ────────────────────────────────────────────────────────────────────────────
+
+// ─── Preset normalization — microphone ───────────────────────────────────────
+// Set USE_PRESET_NORM_MIC = true to lock the mic normalizer to the ranges below.
+// Tweak PRESET_NORM_MIC values here whenever you find a range that looks great.
+const USE_PRESET_NORM_MIC = true
+
+const PRESET_NORM_MIC = {
+  bass: { min: 0.54248366951942444, max: 1 },
+  mid:  { min: 0.0299346411973238,  max: 0.42679738998413086 },
+  high: { min: 0.04,                max: 0.08492104709148407 },
+}
+// ────────────────────────────────────────────────────────────────────────────
+
 function averageBins(fft: Uint8Array, start: number, end: number): number {
   let sum = 0
   for (let i = start; i < end; i++) sum += fft[i]
@@ -68,16 +92,41 @@ function savePersistedNorm(bass: Float32Array, mid: Float32Array, high: Float32A
   } catch { /* storage full or unavailable */ }
 }
 
-export function createNormalizedExtractor() {
+function remapFixed(value: number, min: number, max: number): number {
+  const range = max - min
+  if (range < 0.01) return 0.5
+  return Math.max(0, Math.min(1, (value - min) / range))
+}
+
+export function createNormalizedExtractor(usePreset = USE_PRESET_NORM) {
+  if (usePreset) {
+    return (fft: Uint8Array): AudioFeatures => {
+      const raw = extractFeatures(fft)
+      return {
+        bass: remapFixed(raw.bass, PRESET_NORM.bass.min, PRESET_NORM.bass.max),
+        mid:  remapFixed(raw.mid,  PRESET_NORM.mid.min,  PRESET_NORM.mid.max),
+        high: remapFixed(raw.high, PRESET_NORM.high.min, PRESET_NORM.high.max),
+      }
+    }
+  }
+
+  if (USE_PRESET_NORM_MIC) {
+    return (fft: Uint8Array): AudioFeatures => {
+      const raw = extractFeatures(fft)
+      return {
+        bass: remapFixed(raw.bass, PRESET_NORM_MIC.bass.min, PRESET_NORM_MIC.bass.max),
+        mid:  remapFixed(raw.mid,  PRESET_NORM_MIC.mid.min,  PRESET_NORM_MIC.mid.max),
+        high: remapFixed(raw.high, PRESET_NORM_MIC.high.min, PRESET_NORM_MIC.high.max),
+      }
+    }
+  }
+
   const bass = new Float32Array(NORM_WINDOW)
   const mid  = new Float32Array(NORM_WINDOW)
   const high = new Float32Array(NORM_WINDOW)
   let head = 0
   let count = 0
 
-  // Pre-seed from localStorage so normalization is instant on the next session.
-  // Fill with alternating min/max so remap sees the correct range from frame 1;
-  // real values gradually replace these as audio plays.
   const saved = loadPersistedNorm()
   if (saved) {
     for (let i = 0; i < NORM_WINDOW; i++) {
@@ -85,12 +134,10 @@ export function createNormalizedExtractor() {
       mid[i]  = i % 2 === 0 ? saved.mid.min  : saved.mid.max
       high[i] = i % 2 === 0 ? saved.high.min : saved.high.max
     }
-    count = NORM_WINDOW  // treat buffer as already full
+    count = NORM_WINDOW
   }
 
   function remap(buf: Float32Array, value: number): number {
-    // Before wrap-around, only the filled prefix [0..count-1] is valid.
-    // After wrap-around, the entire buffer is valid.
     const n = Math.min(count, NORM_WINDOW)
     let min = buf[0], max = buf[0]
     for (let i = 1; i < n; i++) {
@@ -98,7 +145,7 @@ export function createNormalizedExtractor() {
       if (buf[i] > max) max = buf[i]
     }
     const range = max - min
-    if (range < 0.01) return 0.5  // silent / flat signal — avoid division by near-zero
+    if (range < 0.01) return 0.5
     return Math.max(0, Math.min(1, (value - min) / range))
   }
 
@@ -110,9 +157,6 @@ export function createNormalizedExtractor() {
     head = (head + 1) % NORM_WINDOW
     count++
 
-    // Persist once the buffer is full, then refresh every ~3 sec (50 calls).
-    // NORM_WINDOW (150) is a multiple of 50, so the first save fires exactly
-    // when the buffer completes its first real cycle.
     if (count >= NORM_WINDOW && count % 50 === 0) {
       savePersistedNorm(bass, mid, high)
     }

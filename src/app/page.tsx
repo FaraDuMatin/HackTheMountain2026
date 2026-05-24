@@ -2,8 +2,12 @@
 
 import { useRef, useEffect, useCallback, useState, useTransition } from 'react'
 import { uploadAudio, downloadFromYoutube } from './actions'
-import { setupAudioAnalyser, setupAudioAnalyserFromUrl, type AudioSetup } from '@/lib/util'
+import { setupAudioAnalyser, setupAudioAnalyserFromUrl, createSilentAnalyser, type AudioSetup } from '@/lib/util'
+import { setupMic, type MicSetup } from '@/lib/mic'
 import { startFFT3DVisualizer } from '@/lib/3d-visualization'
+import { UploadMp3Button } from '@/components/UploadMp3Button'
+import { YoutubeImportButton } from '@/components/YoutubeImportButton'
+import { MicButton } from '@/components/MicButton'
 
 const DEFAULT_SONG = '/default.mp3'
 
@@ -12,29 +16,45 @@ export default function Home() {
   const stopVisualizerRef = useRef<(() => void) | null>(null)
   const contextRef = useRef<AudioContext | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
-  const [status, setStatus] = useState('Press P to play default song, or upload an MP3')
+  const analyserRef = useRef<AnalyserNode | null>(null)
+  const micRef = useRef<MicSetup | null>(null)
+  const isMicActiveRef = useRef(false)
+  const micAnalyserRef = useRef<AnalyserNode | null>(null)
+  const [status, setStatus] = useState('Press P to play default song, upload an MP3, or use your microphone')
   const [isLoaded, setIsLoaded] = useState(false)
   const [isPending, startTransition] = useTransition()
-  const [showYtInput, setShowYtInput] = useState(false)
-  const [ytUrl, setYtUrl] = useState('')
   const [isYtPending, setIsYtPending] = useState(false)
+  const [isMicActive, setIsMicActive] = useState(false)
+  const [isMicLoading, setIsMicLoading] = useState(false)
+  const [micGain, setMicGain] = useState(2.0)
 
   const teardown = useCallback(() => {
+    micRef.current?.stop()
+    micRef.current = null
+    isMicActiveRef.current = false
+    micAnalyserRef.current = null
+    setIsMicActive(false)
     stopVisualizerRef.current?.()
-    stopVisualizerRef.current = null  // prevent double-cleanup if startVisualizer calls it again
+    stopVisualizerRef.current = null
     audioRef.current?.pause()
     contextRef.current?.close()
+    analyserRef.current = null
+    contextRef.current = null
+    audioRef.current = null
   }, [])
 
   const startVisualizer = useCallback((setup: AudioSetup) => {
     contextRef.current = setup.context
     audioRef.current = setup.audio
+    analyserRef.current = setup.analyser
     if (mountRef.current) {
       stopVisualizerRef.current?.()
-      stopVisualizerRef.current = startFFT3DVisualizer(setup.analyser, mountRef.current, setup.audio)
+      stopVisualizerRef.current = startFFT3DVisualizer(setup.analyser, mountRef.current, setup.audio, isMicActiveRef, micAnalyserRef)
     }
     setIsLoaded(true)
-    setStatus('Playing — P to pause | click scene to look around | WASD to move')
+    setStatus(setup.audio
+      ? 'Playing — P to pause | click scene to look around | WASD to move'
+      : 'Mic active — make some noise! | click scene to look around | WASD to move')
   }, [])
 
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -49,18 +69,15 @@ export default function Home() {
 
     startTransition(async () => {
       console.log(`[page] Sending to server: "${file.name}" (${(file.size / 1024 / 1024).toFixed(2)} MB)`)
-
       let base64: string
       try {
         base64 = await uploadAudio(formData)
-        console.log('[page] Server action succeeded, decoding audio…')
         setStatus('Server processed. Starting playback…')
       } catch (err) {
         console.error('[page] Server action failed:', err)
         setStatus(`Server error: ${(err as Error).message}`)
         return
       }
-
       try {
         const setup = await setupAudioAnalyser(base64)
         startVisualizer(setup)
@@ -71,20 +88,14 @@ export default function Home() {
     })
   }, [teardown, startVisualizer])
 
-  const handleYoutubeDownload = useCallback(async () => {
-    const trimmed = ytUrl.trim()
-    if (!trimmed) return
-
+  const handleYoutubeDownload = useCallback(async (url: string) => {
     teardown()
-    setShowYtInput(false)
-    setYtUrl('')
     setIsYtPending(true)
-    // Render free tier cold-starts can take ~30s — let the user know
     setStatus('Contacting YouTube backend… (may take up to 30 s on first load)')
 
     let base64: string
     try {
-      base64 = await downloadFromYoutube(trimmed)
+      base64 = await downloadFromYoutube(url)
       setStatus('Downloaded. Starting playback…')
     } catch (err) {
       console.error('[page] YouTube download failed:', err)
@@ -101,17 +112,65 @@ export default function Home() {
       setStatus(`Playback error: ${(err as Error).message}`)
     }
     setIsYtPending(false)
-  }, [ytUrl, teardown, startVisualizer])
+  }, [teardown, startVisualizer])
+
+  const handleMicToggle = useCallback(async () => {
+    if (micRef.current) {
+      micRef.current.stop()
+      micRef.current = null
+      isMicActiveRef.current = false
+      micAnalyserRef.current = null
+      setIsMicActive(false)
+      const audio = audioRef.current
+      setStatus(audio && !audio.paused
+        ? 'Playing — P to pause | click scene to look around | WASD to move'
+        : audio
+          ? 'Paused — press P to resume'
+          : 'Press P to play default song, upload an MP3, or use your microphone')
+      return
+    }
+
+    setIsMicLoading(true)
+    try {
+      // Bootstrap a silent AudioContext + visualizer if no song is loaded yet
+      if (!contextRef.current || !analyserRef.current) {
+        const setup = createSilentAnalyser()
+        await setup.context.resume()
+        startVisualizer(setup)
+      }
+      const mic = await setupMic(contextRef.current!, analyserRef.current!, micGain)
+      micRef.current = mic
+      isMicActiveRef.current = true
+      micAnalyserRef.current = mic.micAnalyser
+      setIsMicActive(true)
+      setStatus('Mic active — make some noise! | click scene to look around | WASD to move')
+    } catch (err) {
+      console.error('[page] Mic setup failed:', err)
+      setStatus(`Mic error: ${(err as Error).message}`)
+    }
+    setIsMicLoading(false)
+  }, [startVisualizer, micGain])
+
+  const handleMicGainChange = useCallback((gain: number) => {
+    setMicGain(gain)
+    if (micRef.current) {
+      micRef.current.gainNode.gain.value = gain
+    }
+  }, [])
 
   useEffect(() => {
     const handleKey = async (e: KeyboardEvent) => {
-      if (e.key.toLowerCase() !== 'p') return
-
+      const key = e.key.toLowerCase()
+      if (key === 'm') {
+        await handleMicToggle()
+        return
+      }
+      if (key !== 'p') return
       const audio = audioRef.current
-
       if (!audio) {
         setStatus('Loading default song…')
         try {
+          teardown()
           const setup = await setupAudioAnalyserFromUrl(DEFAULT_SONG)
           startVisualizer(setup)
         } catch (err) {
@@ -120,7 +179,6 @@ export default function Home() {
         }
         return
       }
-
       if (audio.paused) {
         await audio.play()
         setStatus('Playing — P to pause | click scene to look around | WASD to move')
@@ -135,54 +193,9 @@ export default function Home() {
       window.removeEventListener('keydown', handleKey)
       teardown()
     }
-  }, [startVisualizer, teardown])
+  }, [startVisualizer, teardown, handleMicToggle])
 
   const isBusy = isPending || isYtPending
-
-  const uploadButton = (
-    <label className={`flex items-center justify-center px-4 py-2 bg-blue-500 text-white rounded-lg cursor-pointer hover:bg-blue-600 transition select-none text-sm shadow-lg ${isBusy ? 'opacity-50 pointer-events-none' : ''}`}>
-      <input
-        type="file"
-        accept=".mp3,audio/mpeg"
-        className="hidden"
-        onChange={handleFileChange}
-        disabled={isBusy}
-      />
-      {isPending ? 'Processing…' : 'Upload MP3'}
-    </label>
-  )
-
-  const youtubeSection = (
-    <div className="flex flex-col items-end gap-2">
-      <button
-        onClick={() => setShowYtInput(v => !v)}
-        disabled={isBusy}
-        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition select-none text-sm shadow-lg disabled:opacity-50 cursor-pointer"
-      >
-        {isYtPending ? 'Downloading…' : 'Import from YouTube'}
-      </button>
-      {showYtInput && (
-        <div className="flex gap-2">
-          <input
-            type="text"
-            placeholder="Paste YouTube URL…"
-            value={ytUrl}
-            onChange={e => setYtUrl(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleYoutubeDownload()}
-            className="px-3 py-2 rounded-lg bg-zinc-800 text-white text-sm border border-zinc-600 outline-none focus:border-red-500 w-56"
-            autoFocus
-          />
-          <button
-            onClick={handleYoutubeDownload}
-            disabled={!ytUrl.trim()}
-            className="px-3 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 disabled:opacity-50 transition cursor-pointer"
-          >
-            Go
-          </button>
-        </div>
-      )}
-    </div>
-  )
 
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-zinc-950">
@@ -190,42 +203,28 @@ export default function Home() {
 
       {isLoaded ? (
         <div className="absolute top-4 right-4 flex flex-col items-end gap-2 z-10">
-          {uploadButton}
-          {youtubeSection}
+          <UploadMp3Button disabled={isBusy} isPending={isPending} onFileChange={handleFileChange} />
+          <YoutubeImportButton disabled={isBusy} isPending={isYtPending} onSubmit={handleYoutubeDownload} />
+          <MicButton
+            isActive={isMicActive}
+            isLoading={isMicLoading}
+            gain={micGain}
+            onToggle={handleMicToggle}
+            onGainChange={handleMicGainChange}
+          />
           <p className="text-zinc-400 text-xs text-right max-w-xs">{status}</p>
         </div>
       ) : (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 z-10">
-          {uploadButton}
-          <div className="flex flex-col items-center gap-2">
-            <button
-              onClick={() => setShowYtInput(v => !v)}
-              disabled={isBusy}
-              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition select-none text-sm shadow-lg disabled:opacity-50 cursor-pointer"
-            >
-              {isYtPending ? 'Downloading…' : 'Import from YouTube'}
-            </button>
-            {showYtInput && (
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Paste YouTube URL…"
-                  value={ytUrl}
-                  onChange={e => setYtUrl(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleYoutubeDownload()}
-                  className="px-3 py-2 rounded-lg bg-zinc-800 text-white text-sm border border-zinc-600 outline-none focus:border-red-500 w-56"
-                  autoFocus
-                />
-                <button
-                  onClick={handleYoutubeDownload}
-                  disabled={!ytUrl.trim()}
-                  className="px-3 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 disabled:opacity-50 transition cursor-pointer"
-                >
-                  Go
-                </button>
-              </div>
-            )}
-          </div>
+          <UploadMp3Button disabled={isBusy} isPending={isPending} onFileChange={handleFileChange} />
+          <YoutubeImportButton disabled={isBusy} isPending={isYtPending} onSubmit={handleYoutubeDownload} />
+          <MicButton
+            isActive={isMicActive}
+            isLoading={isMicLoading}
+            gain={micGain}
+            onToggle={handleMicToggle}
+            onGainChange={handleMicGainChange}
+          />
           <p className="text-zinc-400 text-sm">{status}</p>
         </div>
       )}
