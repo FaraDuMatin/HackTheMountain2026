@@ -6,6 +6,7 @@ export type PointCloudSystem = {
   emit(position: THREE.Vector3, color: THREE.Color): void
   update(deltaSec: number): void
   setShape(shape: PointShape): void
+  setPointSize(size: number): void
   dispose(): void
 }
 
@@ -27,6 +28,7 @@ function makeGeometry(shape: PointShape): THREE.BufferGeometry {
 }
 
 export function createPointCloud(scene: THREE.Scene, opts: PointCloudOptions): PointCloudSystem {
+  let pointSize = opts.pointSize
   const material = new THREE.MeshBasicMaterial()
   if (opts.blending) {
     material.blending = opts.blending
@@ -94,7 +96,7 @@ export function createPointCloud(scene: THREE.Scene, opts: PointCloudOptions): P
           continue
         }
 
-        const s = fade * opts.pointSize
+        const s = fade * pointSize
         dummy.position.copy(positions[i])
         dummy.scale.set(s, s, s)
         dummy.updateMatrix()
@@ -119,6 +121,10 @@ export function createPointCloud(scene: THREE.Scene, opts: PointCloudOptions): P
       mesh.instanceMatrix.needsUpdate = true
       active.fill(false)
       scene.add(mesh)
+    },
+
+    setPointSize(size) {
+      pointSize = Math.max(0.01, size)
     },
 
     dispose() {

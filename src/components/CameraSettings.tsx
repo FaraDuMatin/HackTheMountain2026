@@ -2,9 +2,9 @@
 
 import { useState } from 'react'
 import { DEFAULT_CAMERA_SPEED, DEFAULT_CAMERA_SENSITIVITY } from '@/lib/3d-scene'
-import { DEFAULT_TRAIL_POINTS, TRAIL_BUFFER_SIZE } from '@/lib/3d-visualization'
+import { DEFAULT_POINT_SIZE, DEFAULT_TRAIL_POINTS, TRAIL_BUFFER_SIZE } from '@/lib/3d-visualization'
 import { type PointShape } from '@/lib/point-cloud'
-import { type TrailStyle, type TrailCurve } from '@/lib/trail'
+import { PARTICLE_SIZE_MAIN, RIBBON_LINEWIDTH_MAIN, type TrailStyle, type TrailCurve } from '@/lib/trail'
 
 const SHAPES: { value: PointShape; label: string }[] = [
   { value: 'sphere',       label: 'Sphere' },
@@ -29,8 +29,11 @@ interface Props {
   onSensitivityChange: (n: number) => void
   onTrailLengthChange: (n: number) => void
   onShapeChange: (shape: PointShape) => void
+  onPointSizeChange: (n: number) => void
   onTrailStyleChange: (style: TrailStyle) => void
   onTrailCurveChange: (curve: TrailCurve) => void
+  onRibbonWidthChange: (n: number) => void
+  onParticleSizeChange: (n: number) => void
   onWireframeChange: (v: boolean) => void
 }
 
@@ -39,8 +42,11 @@ export function CameraSettings({
   onSensitivityChange,
   onTrailLengthChange,
   onShapeChange,
+  onPointSizeChange,
   onTrailStyleChange,
   onTrailCurveChange,
+  onRibbonWidthChange,
+  onParticleSizeChange,
   onWireframeChange,
 }: Props) {
   const [isOpen, setIsOpen] = useState(false)
@@ -48,8 +54,11 @@ export function CameraSettings({
   const [sensitivity, setSensitivity] = useState(DEFAULT_CAMERA_SENSITIVITY)
   const [trailLength, setTrailLength] = useState(DEFAULT_TRAIL_POINTS)
   const [shape, setShape] = useState<PointShape>('sphere')
+  const [pointSize, setPointSize] = useState(DEFAULT_POINT_SIZE)
   const [trailStyle, setTrailStyle] = useState<TrailStyle>('line')
   const [trailCurve, setTrailCurve] = useState<TrailCurve>('straight')
+  const [ribbonWidth, setRibbonWidth] = useState(RIBBON_LINEWIDTH_MAIN)
+  const [particleSize, setParticleSize] = useState(PARTICLE_SIZE_MAIN)
   const [showWireframe, setShowWireframe] = useState(false)
 
   const handleSpeed = (n: number) => {
@@ -68,6 +77,10 @@ export function CameraSettings({
     setShape(s)
     onShapeChange(s)
   }
+  const handlePointSize = (n: number) => {
+    setPointSize(n)
+    onPointSizeChange(n)
+  }
   const handleTrailStyle = (s: TrailStyle) => {
     setTrailStyle(s)
     onTrailStyleChange(s)
@@ -75,6 +88,14 @@ export function CameraSettings({
   const handleTrailCurve = (c: TrailCurve) => {
     setTrailCurve(c)
     onTrailCurveChange(c)
+  }
+  const handleRibbonWidth = (n: number) => {
+    setRibbonWidth(n)
+    onRibbonWidthChange(n)
+  }
+  const handleParticleSize = (n: number) => {
+    setParticleSize(n)
+    onParticleSizeChange(n)
   }
   const handleWireframe = (v: boolean) => {
     setShowWireframe(v)
@@ -154,6 +175,66 @@ export function CameraSettings({
                 step={10}
                 value={trailLength}
                 onChange={e => handleTrailLength(parseInt(e.target.value))}
+                className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <label className="text-slate-300 text-xs font-medium uppercase tracking-wide">
+                  Point Size
+                </label>
+                <span className="text-cyan-400 text-xs font-mono font-bold bg-slate-800/80 px-2 py-1 rounded">
+                  {pointSize.toFixed(2)}
+                </span>
+              </div>
+              <input
+                type="range"
+                min={0.2}
+                max={10}
+                step={0.1}
+                value={pointSize}
+                onChange={e => handlePointSize(parseFloat(e.target.value))}
+                className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <label className="text-slate-300 text-xs font-medium uppercase tracking-wide">
+                  Ribbon Width
+                </label>
+                <span className="text-cyan-400 text-xs font-mono font-bold bg-slate-800/80 px-2 py-1 rounded">
+                  {ribbonWidth.toFixed(1)}
+                </span>
+              </div>
+              <input
+                type="range"
+                min={1}
+                max={20}
+                step={0.5}
+                value={ribbonWidth}
+                onChange={e => handleRibbonWidth(parseFloat(e.target.value))}
+                className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <label className="text-slate-300 text-xs font-medium uppercase tracking-wide">
+                  Particle Size
+                </label>
+                <span className="text-cyan-400 text-xs font-mono font-bold bg-slate-800/80 px-2 py-1 rounded">
+                  {particleSize.toFixed(2)}
+                </span>
+              </div>
+              <input
+                type="range"
+                min={0.1}
+                max={6}
+                step={0.1}
+                value={particleSize}
+                onChange={e => handleParticleSize(parseFloat(e.target.value))}
                 className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
               />
             </div>

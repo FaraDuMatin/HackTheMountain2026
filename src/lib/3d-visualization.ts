@@ -4,7 +4,15 @@ import { createNormalizedExtractor } from './audio-features'
 import { directMapper } from './spatial-mapping'
 import { bassHueMapper } from './color-mapping'
 import { createPointCloud, type PointShape } from './point-cloud'
-import { createTrail, type TrailStyle, type TrailCurve } from './trail'
+import {
+  createTrail,
+  type TrailStyle,
+  type TrailCurve,
+  RIBBON_LINEWIDTH_MAIN,
+  RIBBON_LINEWIDTH_GLOW,
+  PARTICLE_SIZE_MAIN,
+  PARTICLE_SIZE_GLOW,
+} from './trail'
 import { createScene } from './3d-scene'
 import type { ArtworkData } from './artwork-data'
 
@@ -17,13 +25,21 @@ export type VisualizerHandle = {
   setCameraSensitivity(n: number): void
   setTrailLength(n: number): void
   setPointShape(shape: PointShape): void
+  setPointSize(n: number): void
   setTrailStyle(style: TrailStyle): void
   setTrailCurve(curve: TrailCurve): void
+  setRibbonWidth(n: number): void
+  setParticleSize(n: number): void
   setWireframe(v: boolean): void
 }
 
 export const TRAIL_BUFFER_SIZE = 1000   // pre-allocated max — never changes
 export const DEFAULT_TRAIL_POINTS = 50  // starting visible cap
+export const DEFAULT_POINT_SIZE = 3.0
+const DEFAULT_GLOW_POINT_SIZE = 6.0
+const GLOW_POINT_SIZE_RATIO = DEFAULT_GLOW_POINT_SIZE / DEFAULT_POINT_SIZE
+const GLOW_RIBBON_WIDTH_RATIO = RIBBON_LINEWIDTH_GLOW / RIBBON_LINEWIDTH_MAIN
+const GLOW_PARTICLE_SIZE_RATIO = PARTICLE_SIZE_GLOW / PARTICLE_SIZE_MAIN
 
 export function startFFT3DVisualizer(
   analyser: AnalyserNode,
@@ -44,7 +60,7 @@ export function startFFT3DVisualizer(
   const pointCloud = createPointCloud(scene, {
     maxPoints: 200,
     lifetimeSec: 5,
-    pointSize: 3.0,
+    pointSize: DEFAULT_POINT_SIZE,
   })
 
   // Glow layer: large additive-blended spheres emitted only during mic input.
@@ -52,7 +68,7 @@ export function startFFT3DVisualizer(
   const glowCloud = createPointCloud(scene, {
     maxPoints: 100,
     lifetimeSec: 2,
-    pointSize: 6.0,
+    pointSize: DEFAULT_GLOW_POINT_SIZE,
     blending: THREE.AdditiveBlending,
   })
 
@@ -155,8 +171,11 @@ export function startFFT3DVisualizer(
     setCameraSensitivity(n) { cameraController.setSensitivity(n) },
     setTrailLength(n) { mainTrail.setMaxPoints(n); glowTrail.setMaxPoints(n) },
     setPointShape(shape) { pointCloud.setShape(shape); glowCloud.setShape(shape) },
+    setPointSize(n) { pointCloud.setPointSize(n); glowCloud.setPointSize(n * GLOW_POINT_SIZE_RATIO) },
     setTrailStyle(style) { mainTrail.setStyle(style); glowTrail.setStyle(style) },
     setTrailCurve(curve) { mainTrail.setCurve(curve); glowTrail.setCurve(curve) },
+    setRibbonWidth(n) { mainTrail.setRibbonWidth(n); glowTrail.setRibbonWidth(n * GLOW_RIBBON_WIDTH_RATIO) },
+    setParticleSize(n) { mainTrail.setParticleSize(n); glowTrail.setParticleSize(n * GLOW_PARTICLE_SIZE_RATIO) },
     setWireframe(v) { setWireframe(v) },
   }
 }

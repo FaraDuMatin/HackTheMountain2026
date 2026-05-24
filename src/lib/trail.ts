@@ -17,6 +17,8 @@ export type Trail = {
   setMaxPoints(n: number): void
   setStyle(style: TrailStyle): void
   setCurve(curve: TrailCurve): void
+  setRibbonWidth(n: number): void
+  setParticleSize(n: number): void
   isFull(): boolean
   snapshot(): TrailSnapshot
   dispose(): void
@@ -28,6 +30,8 @@ type TrailOptions = {
   blending?: THREE.Blending
   style?: TrailStyle
   curve?: TrailCurve
+  ribbonWidth?: number
+  particleSize?: number
 }
 
 // Sub-vertices per control-point segment when curve='curved'. Higher = smoother
@@ -35,13 +39,13 @@ type TrailOptions = {
 const CURVE_SUBDIV = 8
 
 // Ribbon thickness in screen pixels (Line2 worldUnits=false).
-const RIBBON_LINEWIDTH_MAIN = 4
-const RIBBON_LINEWIDTH_GLOW = 8
+export const RIBBON_LINEWIDTH_MAIN = 4
+export const RIBBON_LINEWIDTH_GLOW = 8
 
 // Particle sizes (world units, sizeAttenuation=true). Glow trail gets a larger
 // size to match the existing pointCloud/glowCloud visual hierarchy.
-const PARTICLE_SIZE_MAIN = 0.6
-const PARTICLE_SIZE_GLOW = 2.0
+export const PARTICLE_SIZE_MAIN = 0.6
+export const PARTICLE_SIZE_GLOW = 2.0
 
 type MeshAdapter = {
   update(positions: Float32Array, colors: Float32Array, count: number): void
@@ -57,6 +61,10 @@ export function createTrail(scene: THREE.Scene, opts: TrailOptions): Trail {
 
   let style: TrailStyle = opts.style ?? 'line'
   let curveMode: TrailCurve = opts.curve ?? 'straight'
+  const defaultRibbonWidth = opts.blending ? RIBBON_LINEWIDTH_GLOW : RIBBON_LINEWIDTH_MAIN
+  const defaultParticleSize = opts.blending ? PARTICLE_SIZE_GLOW : PARTICLE_SIZE_MAIN
+  let ribbonWidth = opts.ribbonWidth ?? defaultRibbonWidth
+  let particleSize = opts.particleSize ?? defaultParticleSize
 
   // Render buffers: what actually gets uploaded to the GPU. When curve='curved'
   // these hold the densified curve samples (up to CURVE_SUBDIV× control count).
@@ -103,7 +111,7 @@ export function createTrail(scene: THREE.Scene, opts: TrailOptions): Trail {
   const createRibbonAdapter = (): MeshAdapter => {
     const geometry = new LineGeometry()
     const material = new LineMaterial({
-      linewidth: opts.blending ? RIBBON_LINEWIDTH_GLOW : RIBBON_LINEWIDTH_MAIN,
+      linewidth: ribbonWidth,
       vertexColors: true,
       worldUnits: false,
     })
@@ -141,7 +149,7 @@ export function createTrail(scene: THREE.Scene, opts: TrailOptions): Trail {
   const createParticlesAdapter = (): MeshAdapter => {
     const material = new THREE.PointsMaterial({
       vertexColors: true,
-      size: opts.blending ? PARTICLE_SIZE_GLOW : PARTICLE_SIZE_MAIN,
+      size: particleSize,
       sizeAttenuation: true,
     })
     if (opts.blending) {
@@ -259,6 +267,26 @@ export function createTrail(scene: THREE.Scene, opts: TrailOptions): Trail {
       if (c === curveMode) return
       curveMode = c
       rebuild()
+    },
+    setRibbonWidth(n) {
+      const next = Math.max(0.1, n)
+      if (next === ribbonWidth) return
+      ribbonWidth = next
+      if (style === 'ribbon') {
+        adapter.dispose()
+        adapter = createAdapter(style)
+        rebuild()
+      }
+    },
+    setParticleSize(n) {
+      const next = Math.max(0.01, n)
+      if (next === particleSize) return
+      particleSize = next
+      if (style === 'particles') {
+        adapter.dispose()
+        adapter = createAdapter(style)
+        rebuild()
+      }
     },
     isFull() { return controlCount >= cap },
     snapshot() {

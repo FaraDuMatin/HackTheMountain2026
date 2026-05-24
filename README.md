@@ -83,6 +83,3 @@ src/
 
 More detail (architecture decisions, every tunable constant, every exported handle method) lives in [`CLAUDE.md`](./CLAUDE.md).
 
-## License
-
-Hackathon project — no license declared. Ask before reusing.

@@ -237,8 +237,11 @@ export default function Home() {
         onSensitivityChange={(n) => visualizerRef.current?.setCameraSensitivity(n)}
         onTrailLengthChange={(n) => visualizerRef.current?.setTrailLength(n)}
         onShapeChange={(s) => visualizerRef.current?.setPointShape(s)}
+        onPointSizeChange={(n) => visualizerRef.current?.setPointSize(n)}
         onTrailStyleChange={(s) => visualizerRef.current?.setTrailStyle(s)}
         onTrailCurveChange={(c) => visualizerRef.current?.setTrailCurve(c)}
+        onRibbonWidthChange={(n) => visualizerRef.current?.setRibbonWidth(n)}
+        onParticleSizeChange={(n) => visualizerRef.current?.setParticleSize(n)}
         onWireframeChange={(v) => visualizerRef.current?.setWireframe(v)}
       />
 
