@@ -40,8 +40,8 @@ const RIBBON_LINEWIDTH_GLOW = 8
 
 // Particle sizes (world units, sizeAttenuation=true). Glow trail gets a larger
 // size to match the existing pointCloud/glowCloud visual hierarchy.
-const PARTICLE_SIZE_MAIN = 2.0
-const PARTICLE_SIZE_GLOW = 4.0
+const PARTICLE_SIZE_MAIN = 0.6
+const PARTICLE_SIZE_GLOW = 2.0
 
 type MeshAdapter = {
   update(positions: Float32Array, colors: Float32Array, count: number): void

@@ -1,4 +1,4 @@
-# SightHearing
+# LuminaWave
 
 Turn any song or your own voice into a 3D artwork you can fly through, capture, and share.
 
