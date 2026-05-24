@@ -1,19 +1,20 @@
 'use client'
 
 import { useRef, useEffect, useCallback, useState, useTransition } from 'react'
-import { uploadAudio, downloadFromYoutube } from './actions'
+import { uploadAudio, downloadFromYoutube, saveArtworkAction } from './actions'
 import { setupAudioAnalyser, setupAudioAnalyserFromUrl, createSilentAnalyser, type AudioSetup } from '@/lib/util'
 import { setupMic, type MicSetup } from '@/lib/mic'
-import { startFFT3DVisualizer } from '@/lib/3d-visualization'
+import { startFFT3DVisualizer, type VisualizerHandle } from '@/lib/3d-visualization'
 import { UploadMp3Button } from '@/components/UploadMp3Button'
 import { YoutubeImportButton } from '@/components/YoutubeImportButton'
 import { MicButton } from '@/components/MicButton'
+import { CaptureButton } from '@/components/CaptureButton'
 
 const DEFAULT_SONG = '/default.mp3'
 
 export default function Home() {
   const mountRef = useRef<HTMLDivElement>(null)
-  const stopVisualizerRef = useRef<(() => void) | null>(null)
+  const visualizerRef = useRef<VisualizerHandle | null>(null)
   const contextRef = useRef<AudioContext | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const analyserRef = useRef<AnalyserNode | null>(null)
@@ -34,8 +35,8 @@ export default function Home() {
     isMicActiveRef.current = false
     micAnalyserRef.current = null
     setIsMicActive(false)
-    stopVisualizerRef.current?.()
-    stopVisualizerRef.current = null
+    visualizerRef.current?.stop()
+    visualizerRef.current = null
     audioRef.current?.pause()
     contextRef.current?.close()
     analyserRef.current = null
@@ -48,8 +49,8 @@ export default function Home() {
     audioRef.current = setup.audio
     analyserRef.current = setup.analyser
     if (mountRef.current) {
-      stopVisualizerRef.current?.()
-      stopVisualizerRef.current = startFFT3DVisualizer(setup.analyser, mountRef.current, setup.audio, isMicActiveRef, micAnalyserRef)
+      visualizerRef.current?.stop()
+      visualizerRef.current = startFFT3DVisualizer(setup.analyser, mountRef.current, setup.audio, isMicActiveRef, micAnalyserRef)
     }
     setIsLoaded(true)
     setStatus(setup.audio
@@ -158,6 +159,14 @@ export default function Home() {
     }
   }, [])
 
+  const handleCapture = useCallback(async (): Promise<string> => {
+    const handle = visualizerRef.current
+    if (!handle) throw new Error('Nothing to capture yet — start audio or mic first')
+    const data = handle.snapshot()
+    const id = await saveArtworkAction(data)
+    return `/art/${id}`
+  }, [])
+
   useEffect(() => {
     const handleKey = async (e: KeyboardEvent) => {
       const key = e.key.toLowerCase()
@@ -212,6 +221,7 @@ export default function Home() {
             onToggle={handleMicToggle}
             onGainChange={handleMicGainChange}
           />
+          <CaptureButton onCapture={handleCapture} disabled={!isLoaded} />
           <p className="text-zinc-400 text-xs text-right max-w-xs">{status}</p>
         </div>
       ) : (
@@ -225,6 +235,7 @@ export default function Home() {
             onToggle={handleMicToggle}
             onGainChange={handleMicGainChange}
           />
+          <CaptureButton onCapture={handleCapture} disabled={!isLoaded} />
           <p className="text-zinc-400 text-sm">{status}</p>
         </div>
       )}

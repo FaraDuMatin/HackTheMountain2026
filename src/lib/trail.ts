@@ -1,8 +1,14 @@
 import * as THREE from 'three'
 
+export type TrailSnapshot = {
+  positions: number[]
+  colors: number[]
+}
+
 export type Trail = {
   extend(position: THREE.Vector3, color: THREE.Color): void
   isFull(): boolean
+  snapshot(): TrailSnapshot
   dispose(): void
 }
 
@@ -62,6 +68,16 @@ export function createTrail(scene: THREE.Scene, opts: TrailOptions): Trail {
       geometry.setDrawRange(0, count)
     },
     isFull() { return count >= opts.maxPoints },
+    snapshot() {
+      // Plain arrays (not Float32Array) for JSON serialization. Slice off the
+      // populated portion only — unpopulated slots are zeroes that would draw
+      // a spurious line back to origin.
+      const n = count * 3
+      return {
+        positions: Array.from(positions.subarray(0, n)),
+        colors: Array.from(colors.subarray(0, n)),
+      }
+    },
     dispose() {
       scene.remove(line)
       geometry.dispose()

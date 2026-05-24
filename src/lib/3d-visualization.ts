@@ -5,87 +5,17 @@ import { directMapper } from './spatial-mapping'
 import { bassHueMapper } from './color-mapping'
 import { createPointCloud } from './point-cloud'
 import { createTrail } from './trail'
+import { createScene } from './3d-scene'
+import type { ArtworkData } from './artwork-data'
 
 // Sliding window size: trail keeps at most this many most-recent vertices.
 // Lower = shorter visible history (less clutter), higher = more accumulated drawing.
 // Try 500–1000 for a snappy comet-tail look, 5000+ for a long persistent path.
-const MAX_TRAIL_POINTS = 20
+const MAX_TRAIL_POINTS = 50
 
-function createCameraController(
-  camera: THREE.PerspectiveCamera,
-  mount: HTMLDivElement,
-  initialYaw = 0,
-  initialPitch = 0,
-) {
-  const keys: Record<string, boolean> = {}
-  let yaw = initialYaw
-  let pitch = initialPitch
-  const speed = 0.9
-  const sensitivity = 0.003
-
-  const onKeyDown = (e: KeyboardEvent) => {
-    keys[e.key.toLowerCase()] = true
-  }
-  const onKeyUp = (e: KeyboardEvent) => {
-    keys[e.key.toLowerCase()] = false
-  }
-
-  const onMouseMove = (e: MouseEvent) => {
-    if (document.pointerLockElement !== mount) return
-    yaw -= e.movementX * sensitivity
-    pitch -= e.movementY * sensitivity
-    pitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, pitch))
-  }
-
-  const onMouseDown = () => {
-    mount.requestPointerLock?.()
-  }
-
-  const onPointerlockChange = () => {
-    const isLocked = document.pointerLockElement === mount
-    if (isLocked) {
-      mount.style.cursor = 'none'
-    }
-  }
-
-  window.addEventListener('keydown', onKeyDown)
-  window.addEventListener('keyup', onKeyUp)
-  mount.addEventListener('mousemove', onMouseMove)
-  mount.addEventListener('mousedown', onMouseDown)
-  document.addEventListener('pointerlockchange', onPointerlockChange)
-
-  const update = () => {
-    // Apply rotation first so getWorldDirection is accurate
-    camera.rotation.order = 'YXZ'
-    camera.rotation.y = yaw
-    camera.rotation.x = pitch
-
-    const forward = new THREE.Vector3()
-    camera.getWorldDirection(forward)
-    forward.y = 0
-    forward.normalize()
-
-    const right = new THREE.Vector3()
-    right.crossVectors(forward, camera.up).normalize()
-
-    if (keys['w']) camera.position.addScaledVector(forward, speed)
-    if (keys['s']) camera.position.addScaledVector(forward, -speed)
-    if (keys['d']) camera.position.addScaledVector(right, speed)
-    if (keys['a']) camera.position.addScaledVector(right, -speed)
-    if (keys[' ']) camera.position.y += speed
-    if (keys['shift']) camera.position.y -= speed
-  }
-
-  const cleanup = () => {
-    window.removeEventListener('keydown', onKeyDown)
-    window.removeEventListener('keyup', onKeyUp)
-    mount.removeEventListener('mousemove', onMouseMove)
-    mount.removeEventListener('mousedown', onMouseDown)
-    document.removeEventListener('pointerlockchange', onPointerlockChange)
-    document.exitPointerLock?.()
-  }
-
-  return { update, cleanup }
+export type VisualizerHandle = {
+  stop(): void
+  snapshot(): ArtworkData
 }
 
 export function startFFT3DVisualizer(
@@ -94,51 +24,8 @@ export function startFFT3DVisualizer(
   audio: HTMLAudioElement | null,
   liveInputRef?: { current: boolean },       // true while mic is active — keeps main FFT sampling when audio is paused
   micAnalyserRef?: { current: AnalyserNode | null },  // mic-only FFT tap → glow cloud
-): () => void {
-  // --- Scene setup ---
-  const scene = new THREE.Scene()
-  scene.background = new THREE.Color('#09090b')
-
-  const camera = new THREE.PerspectiveCamera(60, mount.clientWidth / mount.clientHeight, 0.1, 1000)
-  // Position camera in front of the spawn region, slightly above, looking at origin.
-  // Spawn region is [-40, 40]^3 centered at (0, 0, 0).
-  const camPos = new THREE.Vector3(0, 50, 130)
-  camera.position.copy(camPos)
-  // Initial yaw=0 (looking straight along -Z), pitch tilts down to face origin.
-  const initialPitch = -Math.atan(camPos.y / camPos.z)
-  const cameraController = createCameraController(camera, mount, 0, initialPitch)
-
-  const renderer = new THREE.WebGLRenderer({ antialias: true })
-  renderer.setSize(mount.clientWidth, mount.clientHeight)
-  renderer.setPixelRatio(window.devicePixelRatio)
-  mount.appendChild(renderer.domElement)
-
-  // --- Lighting (kept for any future Standard materials; basic mesh ignores it) ---
-  scene.add(new THREE.AmbientLight(0xffffff, 0.6))
-  const dirLight = new THREE.DirectionalLight(0xffffff, 1.2)
-  dirLight.position.set(10, 20, 10)
-  scene.add(dirLight)
-
-  // --- Orientation helpers: wireframe box around spawn region + grid floor + axes ---
-  // Points spawn in [-40, 40]^3 centered at origin
-  const boxGeometry = new THREE.BoxGeometry(80, 80, 80)
-  const boxEdges = new THREE.EdgesGeometry(boxGeometry)
-  const boxLines = new THREE.LineSegments(
-    boxEdges,
-    new THREE.LineBasicMaterial({ color: 0x444466 }),
-  )
-  scene.add(boxLines)
-  boxGeometry.dispose() // EdgesGeometry copies what it needs
-
-  // Grid floor at y = -40 (bottom face of the box)
-  const grid = new THREE.GridHelper(80, 16, 0x333344, 0x222233)
-  grid.position.set(0, -40, 0)
-  scene.add(grid)
-
-  // Axes at the bottom-back-left corner of the box: X red, Y green, Z blue
-  const axes = new THREE.AxesHelper(15)
-  axes.position.set(-40, -40, -40)
-  scene.add(axes)
+): VisualizerHandle {
+  const { scene, camera, renderer, cameraController, dispose: disposeScene } = createScene(mount)
 
   // --- Audio feature extractor with rolling normalization ---
   const extractFeatures = createNormalizedExtractor()
@@ -236,22 +123,27 @@ export function startFFT3DVisualizer(
 
   draw()
 
-  const handleResize = () => {
-    camera.aspect = mount.clientWidth / mount.clientHeight
-    camera.updateProjectionMatrix()
-    renderer.setSize(mount.clientWidth, mount.clientHeight)
-  }
-  window.addEventListener('resize', handleResize)
-
-  return () => {
-    cancelAnimationFrame(animFrame)
-    window.removeEventListener('resize', handleResize)
-    cameraController.cleanup()
-    pointCloud.dispose()
-    glowCloud.dispose()
-    mainTrail.dispose()
-    glowTrail.dispose()
-    renderer.dispose()
-    mount.removeChild(renderer.domElement)
+  return {
+    stop() {
+      cancelAnimationFrame(animFrame)
+      pointCloud.dispose()
+      glowCloud.dispose()
+      mainTrail.dispose()
+      glowTrail.dispose()
+      disposeScene()
+    },
+    snapshot(): ArtworkData {
+      return {
+        version: 1,
+        createdAt: new Date().toISOString(),
+        mainTrail: mainTrail.snapshot(),
+        glowTrail: glowTrail.snapshot(),
+        camera: {
+          position: [camera.position.x, camera.position.y, camera.position.z],
+          yaw: camera.rotation.y,
+          pitch: camera.rotation.x,
+        },
+      }
+    },
   }
 }

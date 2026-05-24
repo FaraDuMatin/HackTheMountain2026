@@ -12,7 +12,7 @@ const DEFAULT_SONG = '/default.mp3'
 
 export default function UITestPage() {
   const mountRef = useRef<HTMLDivElement>(null)
-  const stopVisualizerRef = useRef<(() => void) | null>(null)
+  const stopVisualizerRef = useRef<{ stop: () => void } | null>(null)
   const contextRef = useRef<AudioContext | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const [status, setStatus] = useState('Press P to play default song, or upload an MP3')
@@ -23,7 +23,7 @@ export default function UITestPage() {
     contextRef.current = setup.context
     audioRef.current = setup.audio
     if (mountRef.current) {
-      stopVisualizerRef.current?.()
+      stopVisualizerRef.current?.stop()
       stopVisualizerRef.current = startFFT3DVisualizer(setup.analyser, mountRef.current, setup.audio)
     }
     setIsLoaded(true)
@@ -34,7 +34,7 @@ export default function UITestPage() {
     const file = e.target.files?.[0]
     if (!file) return
 
-    stopVisualizerRef.current?.()
+    stopVisualizerRef.current?.stop()
     audioRef.current?.pause()
     contextRef.current?.close()
     setStatus('Uploading to server…')
@@ -99,7 +99,7 @@ export default function UITestPage() {
     window.addEventListener('keydown', handleKey)
     return () => {
       window.removeEventListener('keydown', handleKey)
-      stopVisualizerRef.current?.()
+      stopVisualizerRef.current?.stop()
       audioRef.current?.pause()
       contextRef.current?.close()
     }

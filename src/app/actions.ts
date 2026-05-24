@@ -1,5 +1,9 @@
 'use server'
 
+import { nanoid } from 'nanoid'
+import { saveArtwork } from '@/lib/artwork-storage'
+import type { ArtworkData } from '@/lib/artwork-data'
+
 const YOUTUBE_BACKEND = 'https://backendtodeploytest.onrender.com'
 
 export async function downloadFromYoutube(url: string): Promise<string> {
@@ -56,4 +60,21 @@ export async function uploadAudio(formData: FormData): Promise<string> {
     console.error('[uploadAudio] Failed to read file buffer:', err)
     throw new Error(`Failed to read file: ${(err as Error).message}`)
   }
+}
+
+export async function saveArtworkAction(data: ArtworkData): Promise<string> {
+  if (data.version !== 1) {
+    throw new Error(`Unsupported artwork version: ${data.version}`)
+  }
+  const id = nanoid(10)
+  try {
+    await saveArtwork(id, data)
+  } catch (err) {
+    console.error('[saveArtworkAction] storage write failed:', err)
+    throw new Error(`Failed to save artwork: ${(err as Error).message}`)
+  }
+  const mainCount = data.mainTrail.positions.length / 3
+  const glowCount = data.glowTrail.positions.length / 3
+  console.log(`[saveArtworkAction] saved ${id} — main=${mainCount} glow=${glowCount} vertices`)
+  return id
 }
