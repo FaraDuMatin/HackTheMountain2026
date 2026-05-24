@@ -23,7 +23,7 @@ export async function setupMic(
   micAnalyser.fftSize = analyser.fftSize
   // Lower smoothing so the FFT decays quickly after sound stops (default 0.8 causes
   // several seconds of lingering signal above the noise gate).
-  micAnalyser.smoothingTimeConstant = 0.3
+  micAnalyser.smoothingTimeConstant = 0.01
 
   source.connect(gainNode)
   gainNode.connect(analyser)     // mixes with music → main point cloud

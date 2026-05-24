@@ -78,6 +78,51 @@ Turns sound into 3D artwork. Three input sources (MP3 upload, YouTube URL, live 
 - `.env.example` (committed) lists `BLOB_READ_WRITE_TOKEN=`. `.env.local` (gitignored) holds the actual value for dev. Pull via `npx vercel env pull .env.local`.
 - `.gitignore` excludes `/tmp/` (the local artwork fallback dir)
 
+### Tunable constants (all in `src/lib/`)
+
+#### `3d-scene.ts`
+| Constant | Default | Effect |
+|---|---|---|
+| `SHOW_WIREFRAME` | `true` | Show/hide wireframe box + grid floor + axes helper |
+| `DEFAULT_CAMERA_SPEED` | `0.9` | Starting WASD movement speed (units/frame); exposed in ⚙️ slider |
+| `DEFAULT_CAMERA_SENSITIVITY` | `0.003` | Starting mouse look sensitivity (rad/px); exposed in ⚙️ slider |
+| `DEFAULT_CAM_POS` | `(0, 50, 130)` | Initial camera position |
+
+#### `3d-visualization.ts`
+| Constant | Default | Effect |
+|---|---|---|
+| `TRAIL_BUFFER_SIZE` | `1000` | Pre-allocated max trail vertices — hard GPU ceiling, never changes at runtime |
+| `DEFAULT_TRAIL_POINTS` | `50` | Starting visible window (slider default); can grow up to `TRAIL_BUFFER_SIZE` |
+| Noise-floor `sum > 200` | `200` | Min FFT sum to emit a main trail point (skips near-silence) |
+| Noise-floor `micSum > 400` | `400` | Min FFT sum to emit a glow trail point |
+| `frameCounter % 4` | `4` | Emit every N frames — ~15 points/sec at 60 fps |
+
+Point-cloud params (passed inline to `createPointCloud`):
+- Main cloud: `maxPoints 200`, `lifetimeSec 5`, `pointSize 0.4`
+- Glow cloud: `maxPoints 100`, `lifetimeSec 2`, `pointSize 3.0`, `AdditiveBlending`
+
+#### `audio-features.ts`
+| Constant | Default | Effect |
+|---|---|---|
+| `USE_PRESET_NORM` | `true` | Lock music normalizer to `PRESET_NORM` ranges; `false` → rolling 150-sample window |
+| `PRESET_NORM` | see file | Per-band {min,max} for music. Tweak when a new song's range looks bad |
+| `USE_PRESET_NORM_MIC` | `true` | Lock mic normalizer to `PRESET_NORM_MIC`; `false` → rolling window |
+| `PRESET_NORM_MIC` | see file | Per-band {min,max} for mic. Tweak when mic input range looks off |
+| `NORM_WINDOW` | `150` | Rolling-window size (~10 sec at 15 Hz). Only active when preset is disabled |
+| `LS_TTL_MS` | 7 days | Expiry for localStorage-persisted normalization values (`audio-norm-v1`) |
+
+#### `spatial-mapping.ts`
+| Constant | Default | Effect |
+|---|---|---|
+| `SCALE` | `80` | How far points spread (bass/mid/high each map to `[-40, 40]`) |
+| `JITTER` | `15` | Random noise per emission — needed because real music bands are highly correlated |
+| `TIME_SPEED` | `6` | (`timeMapper` only) How fast the tape extends along X (units/sec) |
+| `TIME_START` | `-60` | (`timeMapper` only) Starting X position |
+| `YZ_SCALE` | `80` | (`timeMapper` only) Y/Z spread for mid/high |
+| `TIME_JITTER` | `4` | (`timeMapper` only) Noise per emission |
+
+Active mapper: `directMapper`. Alternate: `timeMapper` (import and swap in `3d-visualization.ts`).
+
 ### Deployment notes
 - Deployed via Vercel, auto-deploys on push to `main` (repo: `FaraDuMatin/HackTheMountain2026`)
 - Blob store connected via **OIDC** — production doesn't need a static token, but local dev does
