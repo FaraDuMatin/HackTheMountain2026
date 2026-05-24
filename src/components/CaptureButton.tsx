@@ -1,15 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, forwardRef } from 'react'
 
 interface Props {
-  // Called on click. Returns the path to the shareable artwork page (e.g. /art/abc123)
-  // or throws on failure.
   onCapture: () => Promise<string>
   disabled?: boolean
 }
 
-export function CaptureButton({ onCapture, disabled }: Props) {
+export const CaptureButton = forwardRef<HTMLButtonElement, Props>(function CaptureButton({ onCapture, disabled }, ref) {
   const [pending, setPending] = useState(false)
   const [shareUrl, setShareUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -44,33 +42,35 @@ export function CaptureButton({ onCapture, disabled }: Props) {
   }
 
   return (
-    <div className="flex flex-col items-end gap-2">
+    <div className="flex flex-col items-stretch gap-2 w-full">
       <button
+        ref={ref}
         onClick={handleClick}
         disabled={disabled || pending}
-        className="px-4 py-2 rounded-lg text-white text-sm transition select-none shadow-lg disabled:opacity-50 cursor-pointer bg-amber-600 hover:bg-amber-700"
+        className="flex items-center gap-2 px-4 py-2.5 bg-slate-700 hover:bg-slate-600 border border-slate-600 text-slate-300 hover:text-slate-100 rounded-lg text-sm transition duration-300 [box-shadow:0_0_12px_2px_rgba(59,130,246,0.25),0_4px_6px_-1px_rgba(0,0,0,0.4)] select-none disabled:opacity-50 cursor-pointer"
       >
-        {pending ? 'Saving…' : 'Capture Artwork'}
+        <span className="text-base">📸</span>
+        <span>{pending ? 'Saving…' : 'Capture Artwork'}</span>
       </button>
 
       {error && (
-        <p className="text-red-400 text-xs max-w-xs text-right">{error}</p>
+        <p className="text-red-400 text-xs">{error}</p>
       )}
 
       {shareUrl && (
-        <div className="flex items-center gap-2 bg-zinc-900/80 backdrop-blur rounded-lg px-3 py-1.5 max-w-xs">
+        <div className="flex items-center gap-2 bg-slate-900/80 backdrop-blur border border-slate-700 rounded-lg px-3 py-1.5">
           <a
             href={shareUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-zinc-300 text-xs underline truncate font-mono"
+            className="flex-1 text-slate-300 text-xs underline truncate font-mono"
             title={shareUrl}
           >
             {shareUrl.replace(/^https?:\/\//, '')}
           </a>
           <button
             onClick={handleCopy}
-            className="text-zinc-400 hover:text-zinc-200 text-xs cursor-pointer shrink-0"
+            className="text-slate-400 hover:text-slate-200 text-xs cursor-pointer shrink-0"
           >
             {copied ? '✓' : 'Copy'}
           </button>
@@ -78,4 +78,4 @@ export function CaptureButton({ onCapture, disabled }: Props) {
       )}
     </div>
   )
-}
+})

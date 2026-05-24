@@ -9,7 +9,12 @@ import * as THREE from 'three'
 export type CameraController = {
   update(): void
   cleanup(): void
+  setSpeed(n: number): void
+  setSensitivity(n: number): void
 }
+
+export const DEFAULT_CAMERA_SPEED = 0.9
+export const DEFAULT_CAMERA_SENSITIVITY = 0.003
 
 export type SceneSetup = {
   scene: THREE.Scene
@@ -40,8 +45,8 @@ function createCameraController(
   const keys: Record<string, boolean> = {}
   let yaw = initialYaw
   let pitch = initialPitch
-  const speed = 0.9
-  const sensitivity = 0.003
+  let speed = DEFAULT_CAMERA_SPEED
+  let sensitivity = DEFAULT_CAMERA_SENSITIVITY
 
   const onKeyDown = (e: KeyboardEvent) => { keys[e.key.toLowerCase()] = true }
   const onKeyUp = (e: KeyboardEvent) => { keys[e.key.toLowerCase()] = false }
@@ -95,7 +100,10 @@ function createCameraController(
     document.exitPointerLock?.()
   }
 
-  return { update, cleanup }
+  const setSpeed = (n: number) => { speed = n }
+  const setSensitivity = (n: number) => { sensitivity = n }
+
+  return { update, cleanup, setSpeed, setSensitivity }
 }
 
 export function createScene(mount: HTMLDivElement, init: CameraInit = {}): SceneSetup {

@@ -7,13 +7,15 @@ export type TrailSnapshot = {
 
 export type Trail = {
   extend(position: THREE.Vector3, color: THREE.Color): void
+  setMaxPoints(n: number): void
   isFull(): boolean
   snapshot(): TrailSnapshot
   dispose(): void
 }
 
 type TrailOptions = {
-  maxPoints: number
+  maxPoints: number    // pre-allocated buffer size — hard ceiling
+  initialCap?: number  // starting visible cap (defaults to maxPoints)
   blending?: THREE.Blending
 }
 
@@ -44,16 +46,15 @@ export function createTrail(scene: THREE.Scene, opts: TrailOptions): Trail {
   scene.add(line)
 
   let count = 0
+  let cap = opts.initialCap ?? opts.maxPoints
 
   return {
     extend(position, color) {
-      if (count >= opts.maxPoints) {
-        // Sliding window: drop the oldest vertex by shifting everything left by
-        // 3 floats (one vec3). copyWithin is a single memmove call — fast even
-        // for 5000+ vertices.
-        positions.copyWithin(0, 3, opts.maxPoints * 3)
-        colors.copyWithin(0, 3, opts.maxPoints * 3)
-        count = opts.maxPoints - 1
+      if (count >= cap) {
+        // Sliding window: drop oldest vertex by shifting left by one vec3.
+        positions.copyWithin(0, 3, cap * 3)
+        colors.copyWithin(0, 3, cap * 3)
+        count = cap - 1
       }
       const i = count * 3
       positions[i]     = position.x
@@ -67,11 +68,15 @@ export function createTrail(scene: THREE.Scene, opts: TrailOptions): Trail {
       colAttr.needsUpdate = true
       geometry.setDrawRange(0, count)
     },
-    isFull() { return count >= opts.maxPoints },
+    setMaxPoints(n) {
+      cap = Math.max(2, Math.min(n, opts.maxPoints))
+      if (count > cap) {
+        count = cap
+        geometry.setDrawRange(0, count)
+      }
+    },
+    isFull() { return count >= cap },
     snapshot() {
-      // Plain arrays (not Float32Array) for JSON serialization. Slice off the
-      // populated portion only — unpopulated slots are zeroes that would draw
-      // a spurious line back to origin.
       const n = count * 3
       return {
         positions: Array.from(positions.subarray(0, n)),

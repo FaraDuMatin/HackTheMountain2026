@@ -3,39 +3,82 @@
 ## Project: Hack the Mountain 2026 — Audio FFT 3D Visualizer
 
 ### What this app does
-Uploads an MP3 (or auto-loads a default song), computes real-time FFT via Web Audio API, and renders a reactive **3D point cloud** using Three.js. Each audio frame's bass/mid/high energy bands become a point's XYZ position (centered around origin in a `[-40, 40]³` cube). Bass also drives color (blue → red). Points fade out over 5 seconds.
+Turns sound into 3D artwork. Three input sources (MP3 upload, YouTube URL, live mic) feed a Web Audio FFT pipeline; each audio frame's bass/mid/high energy bands become a vertex in a persistent 3D line trail rendered with Three.js. The user can fly through the trail (WASD + mouse-look), then **capture** the artwork — the trail data is saved to Vercel Blob and reachable via a shareable `/art/{id}` URL.
+
+### Inputs
+- **MP3 upload** — server action validates + returns base64, browser decodes via Web Audio
+- **YouTube URL** — `downloadFromYoutube` server action (external backend), same base64 flow
+- **Live microphone** — `getUserMedia` + mic-only `AnalyserNode` for the glow layer
+- **Default song** — `public/default.mp3` auto-loads on first P press if nothing else is playing
+
+### Audio → visuals pipeline
+1. Source feeds an `AnalyserNode` (`fftSize 256` → 128 bins, ~344 Hz each)
+2. `extractFeatures(fft)` averages bins into `{ bass, mid, high }` ∈ [0,1]
+3. `createNormalizedExtractor()` remaps each band via either a **preset** (`PRESET_NORM` for music, `PRESET_NORM_MIC` for mic — both currently enabled) or a rolling 150-sample window. Preset values are persisted in `localStorage` (`audio-norm-v1`, 7-day TTL) so calibration is warm across sessions.
+4. `directMapper(features, t)` → `THREE.Vector3` (X = bass, Y = mid, Z = high, centered, with jitter) inside the `[-40, 40]³` cube
+5. `bassHueMapper(features)` → `THREE.Color` (active color mapper; `rgbFromFeaturesMapper` is the alternate)
+6. Two parallel rendering layers:
+   - **`pointCloud`** — InstancedMesh sphere pool, fading age-based (5 s lifetime, 200 instances)
+   - **`mainTrail`** — `THREE.Line` with `vertexColors: true` and a sliding window of `MAX_TRAIL_POINTS` (currently **50** — hackathon prototype value; was 5000 originally, lowered for testing)
+7. When mic is active, a **separate mic-only analyser** drives:
+   - `glowCloud` — large additive-blended spheres (`THREE.AdditiveBlending`, pointSize 3.0)
+   - `glowTrail` — additive line trail, same sliding-window cap
+   - Both gated by a noise-floor sum check (`micSum > 400`) so silence emits nothing
+
+### Capture & share
+- `visualizerRef.current.snapshot()` returns `ArtworkData` (both trails as plain number arrays + camera position/yaw/pitch + version + timestamp)
+- `saveArtworkAction(data)` → `nanoid(10)` ID → `saveArtwork(id, data)` → returns ID
+- Storage is **hybrid** (`src/lib/artwork-storage.ts`, `import 'server-only'`): Vercel Blob when `BLOB_READ_WRITE_TOKEN` is set (or OIDC-injected `BLOB_STORE_ID` in production), local `./tmp/artworks/{id}.json` otherwise
+- `/art/{id}` route loads the data server-side, hydrates `<ArtworkViewer>` which calls `renderStaticArtwork()` to rebuild the scene at the saved camera angle from the saved trail buffers — no FFT, no audio, no animation loop
 
 ### Key files
-- `src/app/page.tsx` — main client component: file upload UI, P key handler, mounts the 3D scene
-- `src/app/actions.ts` — server action: validates MP3, reads bytes, returns base64 string to client
-- `src/lib/util.ts` — audio utilities: `NUM_FFT_POINTS`, `setupAudioAnalyser(base64)`, `setupAudioAnalyserFromUrl(url)`
-- `src/lib/audio-features.ts` — pure function `extractFeatures(fft)` → `{ bass, mid, high }` (0–1)
-- `src/lib/spatial-mapping.ts` — strategy functions: features → `THREE.Vector3` position. **Active: `directMapper`** (X = bass, Y = mid, Z = high, centered around origin, with jitter). `timeMapper` (tape along X) kept as a fallback option.
-- `src/lib/color-mapping.ts` — strategy functions: features → `THREE.Color`. Currently exports `rgbFromFeaturesMapper` (R=bass, G=mid, B=high).
-- `src/lib/point-cloud.ts` — Three.js point cloud system. `createPointCloud(scene, opts)` returns `{ emit, update, dispose }`. Manages a pool of `InstancedMesh` spheres with age-based fade.
-- `src/lib/3d-visualization.ts` — scene/camera/renderer setup, camera controller, draw loop. Wires together the point cloud system + mappers.
-- `public/default.mp3` — Dragon Ball GT Dan Dan Kokoro Hikareteku, auto-loaded on first P press
+
+#### Pages & routes
+- `src/app/page.tsx` — main client UI: holds `visualizerRef: VisualizerHandle | null`, wires upload / YouTube / mic / capture buttons, P key (play/pause), M key (mic toggle)
+- `src/app/actions.ts` — server actions: `uploadAudio` (MP3 → base64), `downloadFromYoutube` (URL → base64), `saveArtworkAction` (ArtworkData → ID)
+- `src/app/art/[id]/page.tsx` — Next 16 async-params route (`params: Promise<{ id: string }>`), calls `loadArtwork`, 404s if missing, renders `<ArtworkViewer>`
+- `src/app/ui-test/page.tsx` — older standalone test page (no mic / no capture, kept for isolated visualizer debugging)
+
+#### 3D & audio (`src/lib/`)
+- `3d-visualization.ts` — `startFFT3DVisualizer(analyser, mount, audio, liveInputRef?, micAnalyserRef?)` → returns `VisualizerHandle { stop(), snapshot() }`. Owns the draw loop, both clouds, both trails. Uses `createScene()` for renderer/camera setup.
+- `3d-scene.ts` — `createScene(mount, init?)` → `{ scene, camera, renderer, cameraController, dispose }`. Extracted so the static viewer can reuse identical scene setup. `init?` lets the static viewer restore camera position/yaw/pitch.
+- `static-viewer.ts` — `renderStaticArtwork(mount, data)` for the `/art/{id}` route. Builds two `THREE.Line` objects from the saved float arrays, mounts them in a `createScene()` initialized with saved camera. Returns a cleanup fn for React `useEffect`.
+- `trail.ts` — `createTrail(scene, { maxPoints, blending? })` → `{ extend(pos, color), snapshot(), dispose() }`. Sliding window via `Float32Array.copyWithin(0, 3, maxPoints * 3)` when full. `snapshot()` returns plain `number[]` arrays (JSON-safe).
+- `point-cloud.ts` — `createPointCloud(scene, opts)` → `{ emit, update, dispose }`. InstancedMesh pool, age-based fade. Accepts `blending` for the additive glow variant.
+- `mic.ts` — `setupMic(context, mainAnalyser, gain)` → `{ gainNode, micAnalyser, stop }`. Mic source mixed into `mainAnalyser` (so main trail responds to mic too) AND tapped into a separate `micAnalyser` (lower smoothing 0.3) for the glow layer.
+- `audio-features.ts` — `extractFeatures(fft)`, `createNormalizedExtractor(usePresetMusic = true)`. Two preset blocks at the top: `PRESET_NORM` (music) and `PRESET_NORM_MIC` (mic). Both currently enabled — toggle the `USE_PRESET_NORM*` constants to switch to rolling-window mode.
+- `spatial-mapping.ts` — `directMapper` (active), `timeMapper` (alternate)
+- `color-mapping.ts` — `bassHueMapper` (active), `rgbFromFeaturesMapper` (alternate)
+- `util.ts` — `NUM_FFT_POINTS = 128`, `setupAudioAnalyser(base64)`, `setupAudioAnalyserFromUrl(url)`, `createSilentAnalyser()` (used when mic is turned on without any audio loaded)
+- `artwork-data.ts` — shared `ArtworkData` + `ArtworkTrail` types (used by both client snapshot and server storage)
+- `artwork-storage.ts` — `saveArtwork(id, data)` / `loadArtwork(id)`, hybrid Blob/filesystem. `'server-only'` import — must never end up in a client bundle.
+
+#### Components (`src/components/`)
+- `UploadMp3Button.tsx`, `YoutubeImportButton.tsx`, `MicButton.tsx` (with gain slider), `CaptureButton.tsx` (amber, shows share URL + copy button after success), `ArtworkViewer.tsx`
 
 ### Architecture decisions
-- **FFT runs client-side only** (Web Audio API is browser-only). Server action handles upload/validation; decoding + analysis happens in the browser.
-- `NUM_FFT_POINTS = 128` → `fftSize = 256`. Each bin covers ~344 Hz.
-- **Point cloud over bars**: every 4 frames (~15/sec), emit a sphere whose position comes from the active spatial mapper. Lifetime 5 sec, fades via color-darkening + scale-to-zero.
-- **Spatial mapping = direct XYZ (current)**: bands → axes, `(value − 0.5) × 80` + jitter. Spawn region is `[-40, 40]³` centered at origin. Polar/orbital was tried and scratched.
-- **Modular mappers**: spatial and color mappings are isolated in their own files so they can be swapped (e.g. time → polar) without touching the renderer.
-- **Pool size 200** sphere instances — stabilizes at ~75 active with current emission rate × lifetime.
-- **No real per-instance alpha**: `InstancedMesh.setColorAt` is RGB only. Fade is simulated by multiplying RGB by `(1 - age/lifetime)` against the dark `#09090b` background, plus scale shrinking to 0.
-- Camera controller is a plain function (not a class), returns `{ update, cleanup }`. Uses `requestPointerLock` for mouse look.
+- **FFT runs client-side only.** Server actions handle upload/validation/transcoding; decoding + analysis happens in the browser. Snapshots are serialized client-side and posted to a server action for storage.
+- **Two analysers when mic is on, not one.** Main analyser sees the music+mic mix → drives the main trail. The mic-only analyser drives the glow layer with its own normalizer so silence stays dark.
+- **Sliding window in trails, not append-forever.** Hard cap with `copyWithin` shift — keeps GPU memory bounded and the visual "moving brush" feel. Snapshot captures the current window, so the saved artwork is exactly what was on screen.
+- **One `THREE.Line` per trail, not `LineSegments`.** Each vertex is shared between adjacent segments; `vertexColors: true` makes the fragment shader interpolate hue between consecutive points for free.
+- **Hybrid storage avoids cloud quota during dev.** No token → writes to `./tmp/artworks/`. Token present → Vercel Blob. Same code path either way.
+- **OIDC for production blob auth.** Vercel auto-injects `BLOB_STORE_ID` when a store is connected to the project; `BLOB_READ_WRITE_TOKEN` only needed for local dev.
 
 ### Controls
-- **P** — if no audio loaded: starts default song. If audio loaded: toggles pause/resume.
-- **Click the 3D scene** — locks mouse pointer for look-around
-- **WASD** — move camera forward/left/right/back
-- **Space / Shift** — move camera up / down
-- **Mouse** — look around (pitch + yaw, YXZ rotation order)
+- **P** — play default song (first press) or toggle pause/resume
+- **M** — toggle microphone on/off
+- **Click scene** — `requestPointerLock` for mouse look
+- **WASD** — move forward/left/right/back
+- **Space / Shift** — move up / down
+- **Capture button** — snapshot current trails → save → reveal share URL
 
-### Config
-- `next.config.ts` sets `serverActions.bodySizeLimit: '50mb'` — needed because default is 1 MB and MP3s are larger.
-- Next.js 16.2.6, React 19, Tailwind 4, Three.js installed.
-- `reactCompiler: true` in next.config.ts.
+### Config & environment
+- `next.config.ts` — `serverActions.bodySizeLimit: '50mb'` (MP3s exceed the 1 MB default), `reactCompiler: true`, `experimental.serverActions`
+- Next.js **16.2.6** (Turbopack), React **19**, Tailwind 4, Three.js, `@vercel/blob`, `nanoid`
+- `.env.example` (committed) lists `BLOB_READ_WRITE_TOKEN=`. `.env.local` (gitignored) holds the actual value for dev. Pull via `npx vercel env pull .env.local`.
+- `.gitignore` excludes `/tmp/` (the local artwork fallback dir)
 
-### Every 3D related function for now is done in [this file](src/lib/3d-visualization.ts) and the helper modules `audio-features.ts`, `spatial-mapping.ts`, `color-mapping.ts`, `point-cloud.ts` (all in `src/lib/`)
+### Deployment notes
+- Deployed via Vercel, auto-deploys on push to `main` (repo: `FaraDuMatin/HackTheMountain2026`)
+- Blob store connected via **OIDC** — production doesn't need a static token, but local dev does
+- After connecting/disconnecting the store, redeploy before revoking any tokens (production picks up the new `BLOB_STORE_ID` env var during build)

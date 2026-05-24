@@ -8,15 +8,18 @@ import { createTrail } from './trail'
 import { createScene } from './3d-scene'
 import type { ArtworkData } from './artwork-data'
 
-// Sliding window size: trail keeps at most this many most-recent vertices.
-// Lower = shorter visible history (less clutter), higher = more accumulated drawing.
-// Try 500–1000 for a snappy comet-tail look, 5000+ for a long persistent path.
-const MAX_TRAIL_POINTS = 50
+// Removed: MAX_TRAIL_POINTS is now TRAIL_BUFFER_SIZE / DEFAULT_TRAIL_POINTS (exported above)
 
 export type VisualizerHandle = {
   stop(): void
   snapshot(): ArtworkData
+  setCameraSpeed(n: number): void
+  setCameraSensitivity(n: number): void
+  setTrailLength(n: number): void
 }
+
+export const TRAIL_BUFFER_SIZE = 1000   // pre-allocated max — never changes
+export const DEFAULT_TRAIL_POINTS = 50  // starting visible cap
 
 export function startFFT3DVisualizer(
   analyser: AnalyserNode,
@@ -49,11 +52,10 @@ export function startFFT3DVisualizer(
     blending: THREE.AdditiveBlending,
   })
 
-  // Persistent trails — never fade, capped at MAX_TRAIL_POINTS, gradient between
-  // consecutive vertex colors via vertexColors interpolation.
-  const mainTrail = createTrail(scene, { maxPoints: MAX_TRAIL_POINTS })
+  const mainTrail = createTrail(scene, { maxPoints: TRAIL_BUFFER_SIZE, initialCap: DEFAULT_TRAIL_POINTS })
   const glowTrail = createTrail(scene, {
-    maxPoints: MAX_TRAIL_POINTS,
+    maxPoints: TRAIL_BUFFER_SIZE,
+    initialCap: DEFAULT_TRAIL_POINTS,
     blending: THREE.AdditiveBlending,
   })
 
@@ -145,5 +147,8 @@ export function startFFT3DVisualizer(
         },
       }
     },
+    setCameraSpeed(n) { cameraController.setSpeed(n) },
+    setCameraSensitivity(n) { cameraController.setSensitivity(n) },
+    setTrailLength(n) { mainTrail.setMaxPoints(n); glowTrail.setMaxPoints(n) },
   }
 }

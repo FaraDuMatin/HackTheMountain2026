@@ -10,7 +10,10 @@ interface Props {
 
 export function UploadMp3Button({ disabled, isPending, onFileChange }: Props) {
   return (
-    <label className={`flex items-center justify-center px-4 py-2 bg-blue-500 text-white rounded-lg cursor-pointer hover:bg-blue-600 transition select-none text-sm shadow-lg ${disabled ? 'opacity-50 pointer-events-none' : ''}`}>
+    <label
+      className={`flex items-center gap-2 px-4 py-2.5 bg-slate-700 hover:bg-slate-600 border border-slate-600 text-slate-300 hover:text-slate-100 rounded-lg cursor-pointer transition duration-300 [box-shadow:0_0_12px_2px_rgba(59,130,246,0.25),0_4px_6px_-1px_rgba(0,0,0,0.4)] select-none text-sm ${disabled ? 'opacity-50 pointer-events-none' : ''}`}
+      title={isPending ? 'Processing…' : 'Upload MP3'}
+    >
       <input
         type="file"
         accept=".mp3,audio/mpeg"
@@ -18,7 +21,8 @@ export function UploadMp3Button({ disabled, isPending, onFileChange }: Props) {
         onChange={onFileChange}
         disabled={disabled}
       />
-      {isPending ? 'Processing…' : 'Upload MP3'}
+      <span className="text-base">{isPending ? '⏳' : '📤'}</span>
+      <span>{isPending ? 'Processing…' : 'Upload MP3'}</span>
     </label>
   )
 }

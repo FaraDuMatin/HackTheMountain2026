@@ -1,0 +1,125 @@
+'use client'
+
+import { useState } from 'react'
+import { DEFAULT_CAMERA_SPEED, DEFAULT_CAMERA_SENSITIVITY } from '@/lib/3d-scene'
+import { DEFAULT_TRAIL_POINTS, TRAIL_BUFFER_SIZE } from '@/lib/3d-visualization'
+
+interface Props {
+  onSpeedChange: (n: number) => void
+  onSensitivityChange: (n: number) => void
+  onTrailLengthChange: (n: number) => void
+}
+
+export function CameraSettings({ onSpeedChange, onSensitivityChange, onTrailLengthChange }: Props) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [speed, setSpeed] = useState(DEFAULT_CAMERA_SPEED)
+  const [sensitivity, setSensitivity] = useState(DEFAULT_CAMERA_SENSITIVITY)
+  const [trailLength, setTrailLength] = useState(DEFAULT_TRAIL_POINTS)
+
+  const handleSpeed = (n: number) => {
+    setSpeed(n)
+    onSpeedChange(n)
+  }
+  const handleSensitivity = (n: number) => {
+    setSensitivity(n)
+    onSensitivityChange(n)
+  }
+  const handleTrailLength = (n: number) => {
+    setTrailLength(n)
+    onTrailLengthChange(n)
+  }
+
+  return (
+    <div className="fixed left-4 top-4 z-20 flex items-start gap-3">
+      {isOpen && (
+        <div className="bg-slate-900/95 backdrop-blur-sm border border-slate-700/50 rounded-xl p-5 w-72 shadow-2xl">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-slate-100 font-semibold text-sm uppercase tracking-wide flex items-center gap-2">
+              <span className="text-lg">⚙️</span> Camera
+            </h3>
+            <button
+              onClick={() => setIsOpen(false)}
+              className="text-slate-400 hover:text-slate-200 transition p-1 hover:bg-slate-700/50 rounded cursor-pointer"
+            >
+              ✕
+            </button>
+          </div>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <label className="text-slate-300 text-xs font-medium uppercase tracking-wide">
+                  Movement Speed
+                </label>
+                <span className="text-cyan-400 text-xs font-mono font-bold bg-slate-800/80 px-2 py-1 rounded">
+                  {speed.toFixed(2)}
+                </span>
+              </div>
+              <input
+                type="range"
+                min={0.1}
+                max={3}
+                step={0.05}
+                value={speed}
+                onChange={e => handleSpeed(parseFloat(e.target.value))}
+                className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <label className="text-slate-300 text-xs font-medium uppercase tracking-wide">
+                  Mouse Sensitivity
+                </label>
+                <span className="text-cyan-400 text-xs font-mono font-bold bg-slate-800/80 px-2 py-1 rounded">
+                  {sensitivity.toFixed(4)}
+                </span>
+              </div>
+              <input
+                type="range"
+                min={0.0005}
+                max={0.01}
+                step={0.0005}
+                value={sensitivity}
+                onChange={e => handleSensitivity(parseFloat(e.target.value))}
+                className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <label className="text-slate-300 text-xs font-medium uppercase tracking-wide">
+                  Trail Length
+                </label>
+                <span className="text-cyan-400 text-xs font-mono font-bold bg-slate-800/80 px-2 py-1 rounded">
+                  {trailLength}
+                </span>
+              </div>
+              <input
+                type="range"
+                min={10}
+                max={TRAIL_BUFFER_SIZE}
+                step={10}
+                value={trailLength}
+                onChange={e => handleTrailLength(parseInt(e.target.value))}
+                className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      <button
+        onClick={() => setIsOpen(v => !v)}
+        className={`mt-1 p-2.5 rounded-lg transition duration-300 [box-shadow:0_0_12px_2px_rgba(59,130,246,0.25),0_4px_6px_-1px_rgba(0,0,0,0.4)] flex items-center justify-center cursor-pointer ${
+          isOpen
+            ? 'bg-cyan-500/20 border border-cyan-500/50 text-cyan-400'
+            : 'bg-slate-700 hover:bg-slate-600 border border-slate-600 text-slate-300 hover:text-slate-100'
+        }`}
+        title={isOpen ? 'Close camera settings' : 'Open camera settings'}
+      >
+        <span className="text-lg">⚙️</span>
+      </button>
+    </div>
+  )
+}

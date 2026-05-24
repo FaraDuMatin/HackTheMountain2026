@@ -9,11 +9,13 @@ import { UploadMp3Button } from '@/components/UploadMp3Button'
 import { YoutubeImportButton } from '@/components/YoutubeImportButton'
 import { MicButton } from '@/components/MicButton'
 import { CaptureButton } from '@/components/CaptureButton'
+import { CameraSettings } from '@/components/CameraSettings'
 
 const DEFAULT_SONG = '/default.mp3'
 
 export default function Home() {
   const mountRef = useRef<HTMLDivElement>(null)
+  const captureButtonRef = useRef<HTMLButtonElement>(null)
   const visualizerRef = useRef<VisualizerHandle | null>(null)
   const contextRef = useRef<AudioContext | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
@@ -174,6 +176,10 @@ export default function Home() {
         await handleMicToggle()
         return
       }
+      if (key === 'c') {
+        captureButtonRef.current?.click()
+        return
+      }
       if (key !== 'p') return
       const audio = audioRef.current
       if (!audio) {
@@ -206,37 +212,42 @@ export default function Home() {
 
   const isBusy = isPending || isYtPending
 
+  const buttons = (
+    <>
+      <UploadMp3Button disabled={isBusy} isPending={isPending} onFileChange={handleFileChange} />
+      <YoutubeImportButton disabled={isBusy} isPending={isYtPending} onSubmit={handleYoutubeDownload} />
+      <MicButton
+        isActive={isMicActive}
+        isLoading={isMicLoading}
+        gain={micGain}
+        onToggle={handleMicToggle}
+        onGainChange={handleMicGainChange}
+      />
+      <CaptureButton ref={captureButtonRef} onCapture={handleCapture} disabled={!isLoaded} />
+    </>
+  )
+
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-zinc-950">
       <div ref={mountRef} className="absolute inset-0" />
 
+      <CameraSettings
+        onSpeedChange={(n) => visualizerRef.current?.setCameraSpeed(n)}
+        onSensitivityChange={(n) => visualizerRef.current?.setCameraSensitivity(n)}
+        onTrailLengthChange={(n) => visualizerRef.current?.setTrailLength(n)}
+      />
+
       {isLoaded ? (
-        <div className="absolute top-4 right-4 flex flex-col items-end gap-2 z-10">
-          <UploadMp3Button disabled={isBusy} isPending={isPending} onFileChange={handleFileChange} />
-          <YoutubeImportButton disabled={isBusy} isPending={isYtPending} onSubmit={handleYoutubeDownload} />
-          <MicButton
-            isActive={isMicActive}
-            isLoading={isMicLoading}
-            gain={micGain}
-            onToggle={handleMicToggle}
-            onGainChange={handleMicGainChange}
-          />
-          <CaptureButton onCapture={handleCapture} disabled={!isLoaded} />
-          <p className="text-zinc-400 text-xs text-right max-w-xs">{status}</p>
+        <div className="absolute top-4 right-4 flex flex-col items-stretch gap-2 z-10 w-72">
+          {buttons}
+          <p className="text-slate-400 text-xs text-right mt-1">{status}</p>
         </div>
       ) : (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 z-10">
-          <UploadMp3Button disabled={isBusy} isPending={isPending} onFileChange={handleFileChange} />
-          <YoutubeImportButton disabled={isBusy} isPending={isYtPending} onSubmit={handleYoutubeDownload} />
-          <MicButton
-            isActive={isMicActive}
-            isLoading={isMicLoading}
-            gain={micGain}
-            onToggle={handleMicToggle}
-            onGainChange={handleMicGainChange}
-          />
-          <CaptureButton onCapture={handleCapture} disabled={!isLoaded} />
-          <p className="text-zinc-400 text-sm">{status}</p>
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 z-10">
+          <div className="flex flex-col items-stretch gap-2 w-72">
+            {buttons}
+          </div>
+          <p className="text-slate-400 text-sm mt-3">{status}</p>
         </div>
       )}
     </div>
