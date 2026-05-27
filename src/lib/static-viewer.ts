@@ -31,7 +31,7 @@ function buildTrail(trail: ArtworkTrail, blending: THREE.Blending | null): Trail
       geometry.setColors(trail.colors)
     }
     const material = new LineMaterial({
-      linewidth: blending ? RIBBON_LINEWIDTH_GLOW : RIBBON_LINEWIDTH_MAIN,
+      linewidth: trail.ribbonWidth ?? (blending ? RIBBON_LINEWIDTH_GLOW : RIBBON_LINEWIDTH_MAIN),
       vertexColors: true,
       worldUnits: false,
     })
@@ -67,7 +67,7 @@ function buildTrail(trail: ArtworkTrail, blending: THREE.Blending | null): Trail
 
     const material = new THREE.PointsMaterial({
       vertexColors: true,
-      size: blending ? PARTICLE_SIZE_GLOW : PARTICLE_SIZE_MAIN,
+      size: trail.particleSize ?? (blending ? PARTICLE_SIZE_GLOW : PARTICLE_SIZE_MAIN),
       sizeAttenuation: true,
     })
     if (blending) {

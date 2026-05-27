@@ -10,6 +10,8 @@ export type TrailSnapshot = {
   positions: number[]
   colors: number[]
   style: TrailStyle
+  ribbonWidth: number
+  particleSize: number
 }
 
 export type Trail = {
@@ -295,6 +297,8 @@ export function createTrail(scene: THREE.Scene, opts: TrailOptions): Trail {
         positions: Array.from(renderPositions.subarray(0, n)),
         colors: Array.from(renderColors.subarray(0, n)),
         style,
+        ribbonWidth,
+        particleSize,
       }
     },
     dispose() {

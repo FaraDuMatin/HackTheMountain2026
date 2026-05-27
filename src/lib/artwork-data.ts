@@ -10,6 +10,8 @@ export type ArtworkTrail = {
   positions: number[]
   colors: number[]
   style?: TrailStyle
+  ribbonWidth?: number
+  particleSize?: number
 }
 
 export type ArtworkData = {
